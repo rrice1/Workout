@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f1117" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+  <link rel="stylesheet" href="styles.css" />
+  <title>Workout Generator</title>
+</head>
+<body>
+  <header>
+    <h1>Workout Generator</h1>
+  </header>
+
+  <main id="app">
+    <section id="week" class="card"></section>
+
+    <section class="card controls">
+      <label for="focusSelect">Focus</label>
+      <select id="focusSelect"></select>
+      <button id="genBtn" class="primary">Generate today</button>
+    </section>
+
+    <section id="session"></section>
+
+    <section class="card footer">
+      <button id="logBtn" disabled>Log this session</button>
+      <button id="exportBtn">Export backup</button>
+      <label class="importlabel">Import
+        <input id="importInput" type="file" accept="application/json" hidden />
+      </label>
+      <button id="avoidedBtn">Avoided moves</button>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

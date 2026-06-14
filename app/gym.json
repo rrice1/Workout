@@ -1,0 +1,19 @@
+{
+  "_comment": "Gym layout + equipment inventory. zones is a line graph A-B-C-D-E; the generator keeps supersets within same/adjacent zones and prefers to walk the line without backtracking. inventory ladders drive the load rounder. All editable from the app Settings screen.",
+  "zones": {
+    "A": { "name": "DB & bench end", "has": ["dumbbells", "free benches", "bench press", "Smith machine", "leg press"], "adjacent": ["B"], "order": 0 },
+    "B": { "name": "Barbell / rig", "has": ["barbell racks", "rigs", "bands (assisted pull-ups)", "kettlebells", "med balls", "boxes", "rowers", "curved treadmills", "assault bikes"], "adjacent": ["A", "C"], "order": 1 },
+    "C": { "name": "Machines", "has": ["selectorized machines", "plate-loaded machines"], "adjacent": ["B", "D"], "order": 2 },
+    "D": { "name": "Cardio", "has": ["treadmills (flat + curved)", "assault bikes", "stairmasters", "rowers", "ski ergs"], "adjacent": ["C", "E"], "order": 3 },
+    "E": { "name": "Open functional", "has": ["mats", "dumbbells", "kettlebells", "med balls", "bosu balls", "boxes", "jump ropes", "ab rollers", "open floor for carries"], "adjacent": ["D"], "order": 4 }
+  },
+  "inventory": {
+    "_note": "Weights in lb unless marked kg. The rounder snaps suggestions to the nearest achievable value per implement.",
+    "dumbbells_lb": [2.5, 5, 7.5, 10, 12.5, 15, 17.5, 20, 22.5, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 90, 100, 110, 120],
+    "plates_lb": [2.5, 5, 10, 25, 35, 45],
+    "barbells": { "womens_kg": 15, "mens_kg": 20, "womens_lb": 33, "mens_lb": 45, "note": "either person may use either bar; pick per session" },
+    "kettlebells_kg": [8, 10, 12, 14, 16, 18, 20, 24, 28, 32],
+    "kettlebells_floor_uncertain": true,
+    "kg_to_lb": 2.2046
+  }
+}

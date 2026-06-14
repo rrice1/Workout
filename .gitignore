@@ -1,0 +1,8 @@
+# This repo is PUBLIC (for GitHub Pages) and publishes ONLY the app folder.
+# Everything else — source screenshots, personal training notes/docs, backups —
+# stays local and is never committed. Allowlist style: ignore everything, then
+# re-include just what should be public.
+/*
+!/app/
+!/README.md
+!/.gitignore
