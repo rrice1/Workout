@@ -586,7 +586,8 @@ function weeklySets(history, today) {
         const buckets = new Set((it.muscles || []).map((mu) => MUSCLE_BUCKET[mu]).filter(Boolean));
         for (const b of buckets) sets[b] += n;
       }
-      if (it.pattern === "conditioning") hadCardio = true;
+      // Only real conditioning work counts as a cardio exposure — not the warm-up's easy cardio.
+      if (it.pattern === "conditioning" && ["conditioning", "metcon", "finisher"].includes(it.role)) hadCardio = true;
     }
     if (hadCardio) cardioExposures++;
   }
@@ -952,7 +953,7 @@ if (typeof document !== "undefined") {
       `<h2>This week so far</h2>` +
       `<p>${recent.length} session(s) · cardio exposures: ${vol.cardioExposures}/3</p>` +
       `<p><b>Freshest:</b> ${fresh.join(", ")}</p>` +
-      `<div class="vol"><div class="vollabel">Hard sets per muscle (last 7 days)</div><div class="volgrid">${volRows}</div></div>`;
+      `<div class="vol"><div class="vollabel">Working sets per muscle (last 7 days)</div><div class="volgrid">${volRows}</div></div>`;
   }
 
   function currentFocusChoice() {
@@ -1085,15 +1086,18 @@ if (typeof document !== "undefined") {
     const loadables = [];
     CURRENT.blocks.forEach((b, bi) => b.items.forEach((it, ii) => { if (it.load) loadables.push({ bi, ii, it }); }));
     let html = `<div class="card"><h2>Log: ${CURRENT.focus}</h2><p class="path">Set what you actually did. RPE = how hard (6 easy → 10 max).</p>`;
+    const rpeOpts = `<option>6</option><option>7</option><option selected>8</option><option>9</option><option>10</option>`;
+    const personRow = (who, label, val) =>
+      `<div class="logperson" data-who="${who}">${label} ` +
+      `<input type="number" step="0.5" class="lgw" value="${val || ""}"> lb ` +
+      `<label>RPE <select class="lgr">${rpeOpts}</select></label> ` +
+      `<label class="cb">done <input type="checkbox" class="lgc" checked></label></div>`;
     loadables.forEach((L, k) => {
       const mv = L.it.movement;
       html += `<div class="logrow" data-k="${k}"><div class="mname">${mv.name}</div>` +
-        `<div class="logfields">` +
-        `<label>You <input type="number" step="0.5" class="lgw" data-who="him" value="${L.it.load.him.valueLb || ""}"></label>` +
-        `<label>Her <input type="number" step="0.5" class="lgw" data-who="her" value="${L.it.load.her.valueLb || ""}"></label>` +
-        `<label>RPE <select class="lgr"><option>6</option><option>7</option><option selected>8</option><option>9</option><option>10</option></select></label>` +
-        `<label class="cb">done <input type="checkbox" class="lgc" checked></label>` +
-        `</div></div>`;
+        personRow("him", "You", L.it.load.him.valueLb) +
+        personRow("her", "Her", L.it.load.her.valueLb) +
+        `</div>`;
     });
     if (!loadables.length) html += `<p>No loaded movements — nothing to track. Just save to record the session.</p>`;
     html += `<div class="footer"><button id="logSave" class="primary">Save</button><button id="logCancel">Cancel</button></div></div>`;
@@ -1103,13 +1107,15 @@ if (typeof document !== "undefined") {
       const rows = el.querySelectorAll(".logrow");
       rows.forEach((row) => {
         const k = +row.dataset.k; const mv = loadables[k].it.movement;
-        const rpe = parseInt(row.querySelector(".lgr").value, 10);
-        const completed = row.querySelector(".lgc").checked;
         STATE.progress = STATE.progress || {};
         STATE.progress[mv.id] = STATE.progress[mv.id] || {};
-        row.querySelectorAll(".lgw").forEach((inp) => {
-          const w = parseFloat(inp.value);
-          if (w > 0) STATE.progress[mv.id][inp.dataset.who] = { load: w, rpe, completed };
+        // Per-person: each of You/Her has their own weight, RPE, and done status.
+        row.querySelectorAll(".logperson").forEach((pr) => {
+          const who = pr.dataset.who;
+          const w = parseFloat(pr.querySelector(".lgw").value);
+          const rpe = parseInt(pr.querySelector(".lgr").value, 10);
+          const completed = pr.querySelector(".lgc").checked;
+          if (w > 0) STATE.progress[mv.id][who] = { load: w, rpe, completed };
         });
       });
       STATE.history.unshift(sessionToHistoryEntry(CURRENT)); // newest-first, for fatigue
@@ -1144,8 +1150,16 @@ if (typeof document !== "undefined") {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () => {
-      try { STATE = JSON.parse(reader.result); saveState(); renderWeek(); alert("Imported."); }
-      catch (err) { alert("Bad file."); }
+      try {
+        STATE = JSON.parse(reader.result);
+        STATE.program = STATE.program || { daysPerWeek: 6, logged: 0 };
+        STATE.slots = STATE.slots || {};
+        STATE.progress = STATE.progress || {};
+        saveState();
+        CURRENT = null;
+        renderProgram(); renderWeek(); renderFocusPicker(); renderSession();
+        alert("Imported.");
+      } catch (err) { alert("Bad file."); }
     };
     reader.readAsText(file);
   }

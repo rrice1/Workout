@@ -281,6 +281,10 @@ phist[0].date = today;
 const wv = G.weeklySets(phist, today);
 ok("push day logs chest volume but no back volume", wv.sets.chest > 0 && wv.sets.back === 0, JSON.stringify(wv.sets));
 ok("history items carry a set count", phist[0].items.some(it => it.sets > 0));
+// Cardio exposure: a strength day's warm-up cardio should NOT count; a real conditioning day should.
+ok("push day (warm-up cardio only) is not a cardio exposure", G.weeklySets(phist, today).cardioExposures === 0, `${G.weeklySets(phist, today).cardioExposures}`);
+const condHist = [Object.assign(G.sessionToHistoryEntry(G.buildProgramSession(DATA, { today, history: [], maxes: {}, settings: {}, day: "Conditioning + Core", seed: 2 })), { date: today })];
+ok("a Conditioning + Core day counts as 1 cardio exposure", G.weeklySets(condHist, today).cardioExposures === 1, `${G.weeklySets(condHist, today).cardioExposures}`);
 // Bucket de-dup: an RDL (hamstrings+glutes -> ham/glutes) at 3 sets counts as 3, not 6.
 const rdlHist = [{ date: today, focus: "x", items: [{ movementId: "rdl-bb", pattern: "hinge", muscles: ["hamstrings", "glutes", "back"], intensity: "med", role: "strength2", sets: 3 }] }];
 const rv = G.weeklySets(rdlHist, today);
