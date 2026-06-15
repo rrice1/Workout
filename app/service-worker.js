@@ -1,5 +1,5 @@
 // Cache-first service worker so the app works offline once installed.
-const CACHE = "wgen-v4";
+const CACHE = "wgen-v5";
 const ASSETS = [
   "./",
   "./index.html",

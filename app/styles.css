@@ -108,8 +108,19 @@ button:disabled { opacity: 0.45; }
   margin-left: 4px;
 }
 
-.loads { display: flex; gap: 16px; font-size: 14px; color: var(--muted); margin: 3px 0; }
+.loads { display: flex; gap: 16px; font-size: 14px; color: var(--muted); margin: 3px 0; flex-wrap: wrap; }
 .loads b { color: var(--good); }
+.loadedit { cursor: pointer; user-select: none; }
+.loadedit:active { opacity: 0.6; }
+.last { color: #6b7280; font-size: 12px; margin-left: 4px; }
+
+.logrow { border-top: 1px solid #262b37; padding: 8px 0; }
+.logrow:first-of-type { border-top: none; }
+.logfields { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 4px; }
+.logfields label { font-size: 12px; color: var(--muted); display: inline-flex; align-items: center; gap: 4px; }
+.logfields input[type="number"] { width: 64px; padding: 6px; border-radius: 8px; border: 1px solid #2c3140; background: var(--card2); color: var(--text); }
+.logfields select { padding: 6px; }
+.logfields .cb { gap: 4px; }
 
 .mactions { display: flex; gap: 8px; margin: 6px 0 2px; }
 .mactions button {

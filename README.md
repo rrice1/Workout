@@ -51,12 +51,15 @@ No App Store, no build, no signing, no expiry. To update later, edit the files a
     and an intensity cap — built for training 6–7 days/week without frying yourself.
   - **Freestyle (CrossFit-style):** the original generator — Warm Up → Strength 1 → Strength 2
     superset → MetCon. Leave it on *Auto* to pick the freshest focus, or choose a specific one.
-- Each loadable move shows **You / Her** suggested weights, computed from your tracked
-  1-rep-max estimates and snapped to weights you can actually load (DB ladder, plate pairs,
-  KB kg steps). Tap to edit anytime.
+- Each loadable move shows **You / Her** weights, snapped to what you can actually load (DB
+  ladder, plate pairs, KB kg steps). **Tap a weight (✎) to edit** — it's saved as your working
+  weight for next time.
 - **Swap** any move for a same-body-region alternative (kept near the same zone). **Don't
   suggest** bans it from future sessions (undo under **Avoided moves**).
-- **Log this session** records it so tomorrow's generation knows what's still recovering.
+- **Log this session** opens a quick form: enter the actual weight you used, an **RPE** (6 easy →
+  10 max), and whether you completed it. Next time that movement appears it shows your last
+  weight and **progresses it** — RPE ≤7 nudges up, 8–9 holds, a missed set backs off. Logging
+  also feeds the recovery model so tomorrow's session knows what's still fatigued.
 - **Export backup** saves your data to a JSON file; **Import** loads it. Data lives on the
   device, so drive each session from one phone and use export/import to sync the other.
 

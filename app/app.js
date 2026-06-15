@@ -23,7 +23,7 @@ const PATTERN_REGION = {
   squat: "lower", hinge: "lower", lunge: "lower",
   "h-push": "push", "v-push": "push", "h-pull": "pull", "v-pull": "pull",
   olympic: "full", carry: "full", core: "core", conditioning: "cardio", mobility: "full",
-  arms: "push", delts: "push", calves: "lower",
+  biceps: "pull", triceps: "push", "side-delts": "push", "rear-delts": "pull", calves: "lower",
 };
 
 // Which body regions a focus's session will train (so the warm-up can target them).
@@ -291,19 +291,56 @@ function roundLoad(targetLb, implement, inv, barKg) {
   }
 }
 
-// Build the his/hers load suggestion for a loadable movement at a rep target.
-function loadSuggestion(movement, reps, maxes, settings, inv) {
+// Step one rung up/down a fixed weight ladder.
+function stepLadder(current, dir, ladder) {
+  const s = [...ladder].sort((a, b) => a - b);
+  let idx = 0, best = Infinity;
+  s.forEach((v, i) => { if (Math.abs(v - current) < best) { best = Math.abs(v - current); idx = i; } });
+  return s[Math.min(s.length - 1, Math.max(0, idx + dir))];
+}
+
+// Next achievable weight one increment above/below current, per implement.
+function nextAchievable(current, dir, implement, inv, barKg) {
+  if (!dir) return current;
+  if (implement === "dumbbell") return stepLadder(current, dir, inv.dumbbells_lb);
+  if (implement === "kettlebell") return Math.round(stepLadder(current / inv.kg_to_lb, dir, inv.kettlebells_kg) * inv.kg_to_lb);
+  if (implement === "barbell") return nearestBarbell(current + dir * 5, Math.round((barKg || inv.barbells.mens_kg) * inv.kg_to_lb), inv.plates_lb);
+  return current;
+}
+
+// RPE/result → progression direction. <=7 (or easy) go up; 8–9 hold; 10 or missed go down.
+function progressDir(p) {
+  if (!p) return 0;
+  if (p.completed === false) return -1;
+  if (p.rpe != null && p.rpe <= 7) return 1;
+  if (p.rpe != null && p.rpe >= 10) return -1;
+  return 0;
+}
+
+// His/hers load suggestion. Prefers your logged working weight (with progression from last
+// RPE); falls back to a %1RM estimate if you've entered a 1RM; otherwise prompts you to enter.
+function loadSuggestion(movement, reps, maxes, settings, inv, progress) {
   if (!movement.loadable) return null;
   const pct = pctForReps(reps);
-  const out = {};
+  const out = { pct };
   for (const who of ["him", "her"]) {
-    const e1rm = maxes[movement.id] ? maxes[movement.id][who] : null;
     const barKg = settings.bars && settings.bars[who] === "womens" ? inv.barbells.womens_kg : inv.barbells.mens_kg;
-    if (!e1rm) { out[who] = { display: "set 1RM", valueLb: null }; continue; }
-    const target = e1rm * pct;
-    out[who] = roundLoad(target, movement.implement, inv, barKg) || { display: `${Math.round(target)} lb`, valueLb: Math.round(target) };
+    const p = progress && progress[movement.id] && progress[movement.id][who];
+    if (p && p.load) {
+      const target = nextAchievable(p.load, progressDir(p), movement.implement, inv, barKg);
+      const r = roundLoad(target, movement.implement, inv, barKg) || { display: `${target} lb`, valueLb: target };
+      out[who] = { display: r.display, valueLb: r.valueLb, last: `last ${p.load}${p.rpe != null ? ` @RPE ${p.rpe}` : ""}` };
+      continue;
+    }
+    const e1rm = maxes[movement.id] ? maxes[movement.id][who] : null;
+    if (e1rm) {
+      const r = roundLoad(e1rm * pct, movement.implement, inv, barKg) || { display: `${Math.round(e1rm * pct)} lb`, valueLb: Math.round(e1rm * pct) };
+      out[who] = { display: r.display, valueLb: r.valueLb, last: null };
+    } else {
+      out[who] = { display: "enter weight", valueLb: null, last: null };
+    }
   }
-  return { pct, ...out };
+  return out;
 }
 
 // ----------------------------------------------------------------------------
@@ -337,6 +374,7 @@ function buildSession(data, opts) {
   const history = opts.history || [];
   const maxes = opts.maxes || {};
   const settings = opts.settings || {};
+  const progress = opts.progress || {};
   const inv = gym.inventory;
   const rng = makeRng(opts.seed || 1);
 
@@ -387,7 +425,7 @@ function buildSession(data, opts) {
       const presc = scheme.label ? `${scheme.label} (${scheme.note})` : `${scheme.sets}×${reps} ${scheme.note}`;
       blocks.push({
         name: "Strength 1", time: "12–15 min", structure: "main lift",
-        items: [{ movement: s1, prescription: presc, load: loadSuggestion(s1, reps, maxes, settings, inv) }],
+        items: [{ movement: s1, prescription: presc, load: loadSuggestion(s1, reps, maxes, settings, inv, progress) }],
       });
       note(s1.id); (s1.muscles || []).forEach((m) => usedMuscles.add(m));
     }
@@ -425,8 +463,8 @@ function buildSession(data, opts) {
       a = pickWeighted(aCands, (m) => scoreByFreshness(m, patternFatigue, pushPullBias), rng);
     }
     const s2items = [];
-    if (a) { s2items.push({ movement: a, prescription: "4×8 @ RPE 8", load: loadSuggestion(a, 8, maxes, settings, inv) }); note(a.id); (a.muscles || []).forEach((m) => usedMuscles.add(m)); }
-    if (b) { s2items.push({ movement: b, prescription: prescribe(b, "strength2", rng), load: loadSuggestion(b, 12, maxes, settings, inv) }); note(b.id); (b.muscles || []).forEach((m) => usedMuscles.add(m)); }
+    if (a) { s2items.push({ movement: a, prescription: "4×8 @ RPE 8", load: loadSuggestion(a, 8, maxes, settings, inv, progress) }); note(a.id); (a.muscles || []).forEach((m) => usedMuscles.add(m)); }
+    if (b) { s2items.push({ movement: b, prescription: prescribe(b, "strength2", rng), load: loadSuggestion(b, 12, maxes, settings, inv, progress) }); note(b.id); (b.muscles || []).forEach((m) => usedMuscles.add(m)); }
     if (s2items.length) blocks.push({ name: "Strength 2 (superset)", time: "9–10 min", structure: "superset", items: s2items });
   }
 
@@ -473,19 +511,19 @@ function buildSession(data, opts) {
 // will never include, an intensity cap, and an ordered list of block types. A "?"
 // suffix marks an optional block (included roughly half the time).
 const PROGRAM_DAYS = {
-  "Push Strength": { category: "upper", primary: ["h-push", "v-push"], secondary: ["delts", "arms"], forbidden: ["squat", "hinge", "lunge", "h-pull", "v-pull"], cap: "heavy",
+  "Push Strength": { category: "upper", primary: ["h-push", "v-push"], secondary: ["triceps", "side-delts"], forbidden: ["squat", "hinge", "lunge", "h-pull", "v-pull"], cap: "heavy",
     blocks: ["prep", "main_strength", "secondary_strength", "accessory_superset", "finisher?"] },
   "Lower Strength — Squat": { category: "lower", primary: ["squat"], secondary: ["lunge", "calves", "core", "hinge"], forbidden: ["h-push", "v-push", "h-pull", "v-pull"], cap: "heavy",
     blocks: ["prep", "main_strength", "secondary_strength", "accessory", "core"] },
-  "Pull Strength": { category: "upper", primary: ["h-pull", "v-pull"], secondary: ["arms", "delts"], forbidden: ["squat", "hinge", "lunge", "h-push", "v-push"], cap: "heavy",
+  "Pull Strength": { category: "upper", primary: ["h-pull", "v-pull"], secondary: ["biceps", "rear-delts"], forbidden: ["squat", "hinge", "lunge", "h-push", "v-push"], cap: "heavy",
     blocks: ["prep", "main_strength", "secondary_strength", "accessory_superset", "carry_core"] },
   "Conditioning + Core": { category: "conditioning", primary: ["conditioning", "core"], secondary: ["core"], forbidden: [], cap: "moderate",
     blocks: ["prep", "conditioning", "core", "mobility"] },
-  "Upper Hypertrophy": { category: "upper", primary: ["h-push", "h-pull", "v-push", "v-pull"], secondary: ["delts", "arms"], forbidden: ["squat", "hinge", "lunge"], cap: "moderate",
+  "Upper Hypertrophy": { category: "upper", primary: ["h-push", "h-pull", "v-push", "v-pull"], secondary: ["side-delts", "rear-delts", "biceps", "triceps"], forbidden: ["squat", "hinge", "lunge"], cap: "moderate",
     blocks: ["prep", "superset_a", "superset_b", "arms_delts"] },
   "Lower Hypertrophy — Hinge": { category: "lower", primary: ["hinge"], secondary: ["lunge", "calves", "core"], forbidden: ["h-push", "v-push", "h-pull", "v-pull"], cap: "moderate",
     blocks: ["prep", "main_hypertrophy", "secondary_hypertrophy", "accessory", "calves_core"] },
-  "Pump / Recovery": { category: "recovery", primary: ["arms", "delts", "calves", "core"], secondary: ["arms", "delts", "calves"], forbidden: ["squat", "hinge", "lunge", "olympic"], cap: "easy",
+  "Pump / Recovery": { category: "recovery", primary: ["biceps", "triceps", "side-delts", "rear-delts", "calves", "core"], secondary: ["biceps", "triceps", "side-delts", "rear-delts", "calves"], forbidden: ["squat", "hinge", "lunge", "olympic"], cap: "easy",
     blocks: ["easy_cardio", "pump", "core", "mobility"] },
 };
 
@@ -502,6 +540,7 @@ function buildProgramSession(data, opts) {
   const history = opts.history || [];
   const maxes = opts.maxes || {};
   const settings = opts.settings || {};
+  const progress = opts.progress || {};
   const inv = gym.inventory;
   const rng = makeRng(opts.seed || 1);
   const cfg = PROGRAM_DAYS[opts.day];
@@ -534,7 +573,7 @@ function buildProgramSession(data, opts) {
     return s;
   }
   function item(m, reps, scheme, slot) {
-    return { movement: m, prescription: scheme || prescribe(m, slot || "strength2", rng), load: loadSuggestion(m, reps, maxes, settings, inv) };
+    return { movement: m, prescription: scheme || prescribe(m, slot || "strength2", rng), load: loadSuggestion(m, reps, maxes, settings, inv, progress) };
   }
   function single(name, role, intensity, spec) {
     let cs = cand({ patterns: spec.patterns, roles: spec.roles, loadable: spec.loadable });
@@ -593,6 +632,16 @@ function buildProgramSession(data, opts) {
     const cS = cand({ patterns: ["core"] }); if (cS.length) { const c = pickWeighted(cS, score, rng); items.push(item(c, 12, null, "strength2")); note(c); }
     return items.length ? { name, role: "core", intensity: "light", items } : null;
   }
+  // Short, focus-biased density finisher (e.g. a quick pump/cardio cap on push day).
+  function finisher() {
+    const items = [];
+    const cardio = cand({ patterns: ["conditioning"], cardio: true });
+    if (cardio.length) { const m = pickWeighted(cardio, score, rng); items.push({ movement: m, prescription: "6 min — easy/moderate" }); note(m); }
+    const upper = cand({ patterns: patternsFor(cfg, "primarySecondary"), cardio: false, loadable: false });
+    const pool2 = upper.length ? upper : cand({ patterns: patternsFor(cfg, "primarySecondary"), cardio: false });
+    if (pool2.length) { const m = pickWeighted(pool2, score, rng); items.push({ movement: m, prescription: "AMRAP in time remaining", load: loadSuggestion(m, 12, maxes, settings, inv, progress) }); note(m); }
+    return items.length ? { name: "Finisher (optional)", role: "finisher", intensity: "med", items } : null;
+  }
 
   function build(token) {
     const optional = token.endsWith("?");
@@ -608,8 +657,9 @@ function buildProgramSession(data, opts) {
       case "accessory_superset": return superset("Accessory superset", "accessory", "light", { patterns: patternsFor(cfg, "secondary"), roles: ["accessory", "strength2"] }, { patterns: patternsFor(cfg, "secondary").concat(["core"]), roles: ["accessory", "strength2", "core"] }, 14, "3×12–15");
       case "superset_a": return superset("Superset A (push/pull)", "strength2", "med", { patterns: ["h-push", "v-push"], roles: ["strength2", "accessory"] }, { patterns: ["h-pull", "v-pull"], roles: ["strength2", "accessory"] }, 10, "3×10");
       case "superset_b": return superset("Superset B (push/pull)", "strength2", "med", { patterns: ["v-push", "h-push"], roles: ["strength2", "accessory"] }, { patterns: ["v-pull", "h-pull"], roles: ["strength2", "accessory"] }, 11, "3×10–12");
-      case "arms_delts": return superset("Arms & Delts", "accessory", "light", { patterns: ["arms"], roles: ["accessory"] }, { patterns: ["delts"], roles: ["accessory"] }, 14, "3×12–15");
-      case "pump": return circuit("Pump Circuit", "accessory", "light", { patterns: ["arms", "delts", "calves"], roles: ["accessory"] }, 4, "3×15–20", 15);
+      case "arms_delts": return superset("Arms & Delts", "accessory", "light", { patterns: ["biceps", "triceps"], roles: ["accessory"] }, { patterns: ["side-delts", "rear-delts"], roles: ["accessory"] }, 14, "3×12–15");
+      case "pump": return circuit("Pump Circuit", "accessory", "light", { patterns: ["biceps", "triceps", "side-delts", "rear-delts", "calves"], roles: ["accessory"] }, 4, "3×15–20", 15);
+      case "finisher": return finisher();
       case "core": return circuit("Core", "core", "light", { patterns: ["core"] }, 2, null, 12);
       case "carry_core": return comboBlock("Carry & Core", { patterns: ["carry"], roles: ["metcon"] }, null, 12);
       case "calves_core": return comboBlock("Calves & Core", { patterns: ["calves"], roles: ["accessory"] }, "3×15–20", 15);
@@ -735,7 +785,7 @@ if (typeof document !== "undefined") {
       const raw = localStorage.getItem(STORE_KEY);
       if (raw) return JSON.parse(raw);
     } catch (e) {}
-    return { history: [], maxes: {}, settings: { bars: { him: "mens", her: "womens" } }, avoidList: [] };
+    return { history: [], maxes: {}, progress: {}, settings: { bars: { him: "mens", her: "womens" } }, avoidList: [] };
   }
   function saveState() { localStorage.setItem(STORE_KEY, JSON.stringify(STATE)); }
   function todayStr() { const d = new Date(); return d.toISOString().slice(0, 10); }
@@ -767,7 +817,7 @@ if (typeof document !== "undefined") {
 
   function generate(choice) {
     const seed = (Date.now() & 0xffffffff) ^ Math.floor(Math.random() * 1e9);
-    const base = { today: todayStr(), history: STATE.history, maxes: STATE.maxes, settings: STATE.settings, avoidList: STATE.avoidList, seed };
+    const base = { today: todayStr(), history: STATE.history, maxes: STATE.maxes, progress: STATE.progress || {}, settings: STATE.settings, avoidList: STATE.avoidList, seed };
     if (choice && PROGRAM_DAYS[choice]) {
       CURRENT = buildProgramSession(DATA, Object.assign({ day: choice }, base));
     } else {
@@ -829,7 +879,12 @@ if (typeof document !== "undefined") {
         const mz = (it.movement.zones || []).join("/");
         html += `<div class="mpresc">${it.prescription || ""}${mz ? ` <span class="mzone">Zone ${mz}</span>` : ""}</div>`;
         if (it.load) {
-          html += `<div class="loads"><span>You: <b>${it.load.him.display}</b></span><span>Her: <b>${it.load.her.display}</b></span></div>`;
+          const lastH = it.load.him.last ? `<span class="last">${it.load.him.last}</span>` : "";
+          const lastR = it.load.her.last ? `<span class="last">${it.load.her.last}</span>` : "";
+          html += `<div class="loads">` +
+            `<span class="loadedit" data-bi="${bi}" data-ii="${ii}" data-who="him">You: <b>${it.load.him.display}</b> ${lastH} ✎</span>` +
+            `<span class="loadedit" data-bi="${bi}" data-ii="${ii}" data-who="her">Her: <b>${it.load.her.display}</b> ${lastR} ✎</span>` +
+            `</div>`;
         }
         html += `<div class="mactions"><button class="swap" data-bi="${bi}" data-ii="${ii}">Swap</button><button class="avoid" data-bi="${bi}" data-ii="${ii}">Don't suggest</button></div>`;
         html += `</div>`;
@@ -839,6 +894,7 @@ if (typeof document !== "undefined") {
     el.innerHTML = html;
     el.querySelectorAll("button.swap").forEach((b) => b.onclick = () => swapMove(+b.dataset.bi, +b.dataset.ii));
     el.querySelectorAll("button.avoid").forEach((b) => b.onclick = () => avoidMove(+b.dataset.bi, +b.dataset.ii));
+    el.querySelectorAll(".loadedit").forEach((s) => s.onclick = () => editLoad(+s.dataset.bi, +s.dataset.ii, s.dataset.who));
     document.getElementById("logBtn").disabled = false;
   }
 
@@ -856,7 +912,7 @@ if (typeof document !== "undefined") {
       movement: next,
       // Keep the main-lift scheme on S1 swaps; otherwise recompute (handles time/distance moves).
       prescription: slot === "strength1" ? item.prescription : prescribe(next, slot, Math.random),
-      load: loadSuggestion(next, reps, STATE.maxes, STATE.settings, DATA.gym.inventory),
+      load: loadSuggestion(next, reps, STATE.maxes, STATE.settings, DATA.gym.inventory, STATE.progress || {}),
     };
     assignZones(DATA.gym, CURRENT.blocks);
     CURRENT.zonePath = CURRENT.blocks.map((b) => b.zone).filter((z, i, a) => z && (i === 0 || z !== a[i - 1]));
@@ -886,13 +942,67 @@ if (typeof document !== "undefined") {
     });
   }
 
+  // Tap a load to set the weight you'll actually use (snapped to loadable). Stored as your
+  // working weight so future sessions remember and progress it.
+  function editLoad(bi, ii, who) {
+    const it = CURRENT.blocks[bi].items[ii];
+    if (!it.load) return;
+    const mv = it.movement;
+    const cur = it.load[who].valueLb || "";
+    const val = parseFloat(prompt(`${mv.name} — ${who === "him" ? "your" : "her"} weight (lb):`, cur));
+    if (!val || val <= 0) return;
+    const barKg = STATE.settings.bars && STATE.settings.bars[who] === "womens" ? DATA.gym.inventory.barbells.womens_kg : DATA.gym.inventory.barbells.mens_kg;
+    const snapped = roundLoad(val, mv.implement, DATA.gym.inventory, barKg) || { display: val + " lb", valueLb: val };
+    it.load[who] = { display: snapped.display, valueLb: snapped.valueLb, last: it.load[who].last };
+    // Remember as working weight (hold next time until RPE says otherwise).
+    STATE.progress = STATE.progress || {};
+    STATE.progress[mv.id] = STATE.progress[mv.id] || {};
+    STATE.progress[mv.id][who] = { load: snapped.valueLb, rpe: STATE.progress[mv.id][who] ? STATE.progress[mv.id][who].rpe : null, completed: true };
+    saveState();
+    renderSession();
+  }
+
+  // Log flow: capture actual weight + RPE + completed for each loadable move, then save —
+  // this drives next session's load suggestions (progression).
   function logSession() {
     if (!CURRENT) return;
-    const entry = sessionToHistoryEntry(CURRENT);
-    STATE.history.unshift(entry); // newest-first
-    saveState();
-    renderWeek();
-    alert("Logged. Nice work!");
+    const el = document.getElementById("session");
+    const loadables = [];
+    CURRENT.blocks.forEach((b, bi) => b.items.forEach((it, ii) => { if (it.load) loadables.push({ bi, ii, it }); }));
+    let html = `<div class="card"><h2>Log: ${CURRENT.focus}</h2><p class="path">Set what you actually did. RPE = how hard (6 easy → 10 max).</p>`;
+    loadables.forEach((L, k) => {
+      const mv = L.it.movement;
+      html += `<div class="logrow" data-k="${k}"><div class="mname">${mv.name}</div>` +
+        `<div class="logfields">` +
+        `<label>You <input type="number" step="0.5" class="lgw" data-who="him" value="${L.it.load.him.valueLb || ""}"></label>` +
+        `<label>Her <input type="number" step="0.5" class="lgw" data-who="her" value="${L.it.load.her.valueLb || ""}"></label>` +
+        `<label>RPE <select class="lgr"><option>6</option><option>7</option><option selected>8</option><option>9</option><option>10</option></select></label>` +
+        `<label class="cb">done <input type="checkbox" class="lgc" checked></label>` +
+        `</div></div>`;
+    });
+    if (!loadables.length) html += `<p>No loaded movements — nothing to track. Just save to record the session.</p>`;
+    html += `<div class="footer"><button id="logSave" class="primary">Save</button><button id="logCancel">Cancel</button></div></div>`;
+    el.innerHTML = html;
+    document.getElementById("logCancel").onclick = () => renderSession();
+    document.getElementById("logSave").onclick = () => {
+      const rows = el.querySelectorAll(".logrow");
+      rows.forEach((row) => {
+        const k = +row.dataset.k; const mv = loadables[k].it.movement;
+        const rpe = parseInt(row.querySelector(".lgr").value, 10);
+        const completed = row.querySelector(".lgc").checked;
+        STATE.progress = STATE.progress || {};
+        STATE.progress[mv.id] = STATE.progress[mv.id] || {};
+        row.querySelectorAll(".lgw").forEach((inp) => {
+          const w = parseFloat(inp.value);
+          if (w > 0) STATE.progress[mv.id][inp.dataset.who] = { load: w, rpe, completed };
+        });
+      });
+      STATE.history.unshift(sessionToHistoryEntry(CURRENT)); // newest-first, for fatigue
+      saveState();
+      renderWeek();
+      el.innerHTML = `<div class="card"><h2>Logged ✓</h2><p>Nice work. Next time these weights will progress based on your RPE.</p></div>`;
+      document.getElementById("logBtn").disabled = true;
+    };
   }
 
   function exportData() {

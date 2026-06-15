@@ -218,8 +218,42 @@ for (let seed = 1; seed <= 25; seed++) {
 }
 ok("Pump / Recovery has no heavy blocks", pumpHeavy === 0, `${pumpHeavy}`);
 // Upper Hypertrophy pulls in isolation movements that now exist
+const ISO = ["biceps", "triceps", "side-delts", "rear-delts"];
 const uh = dayMoves("Upper Hypertrophy", 3).map(m => m.pattern);
-ok("Upper Hypertrophy includes arms or delts isolation", uh.includes("arms") || uh.includes("delts"), uh.join(","));
+ok("Upper Hypertrophy includes arms/delts isolation", uh.some(p => ISO.includes(p)), uh.join(","));
+
+console.log("\n== Accessory granularity: push gets triceps not biceps, pull gets biceps not triceps ==");
+let pushBiceps = 0, pullTriceps = 0;
+for (let seed = 1; seed <= 30; seed++) {
+  const push = dayMoves("Push Strength", seed).map(m => m.pattern);
+  const pull = dayMoves("Pull Strength", seed).map(m => m.pattern);
+  if (push.includes("biceps")) pushBiceps++;
+  if (pull.includes("triceps")) pullTriceps++;
+}
+ok("Push Strength never programs biceps", pushBiceps === 0, `${pushBiceps}`);
+ok("Pull Strength never programs triceps", pullTriceps === 0, `${pullTriceps}`);
+
+console.log("\n== Finisher block is implemented (Push day) ==");
+let finisherSeen = 0;
+for (let seed = 1; seed <= 40; seed++) {
+  const s = G.buildProgramSession(DATA, { today, history: [], maxes: {}, settings: {}, day: "Push Strength", seed });
+  const fin = s.blocks.find(b => b.role === "finisher");
+  if (fin) { finisherSeen++; if (!fin.items.length) fail++; }
+}
+ok("optional finisher actually appears sometimes with content", finisherSeen > 0, `${finisherSeen}/40 seeds`);
+
+console.log("\n== Load progression (working weight + RPE) ==");
+const dbBench = movements.find(m => m.id === "db-bench");
+const set = { bars: { him: "mens", her: "womens" } };
+const up = G.loadSuggestion(dbBench, 8, {}, set, inv, { "db-bench": { him: { load: 50, rpe: 7, completed: true } } });
+ok("RPE 7 (easy) suggests going up from 50", up.him.valueLb > 50, JSON.stringify(up.him));
+const hold = G.loadSuggestion(dbBench, 8, {}, set, inv, { "db-bench": { him: { load: 50, rpe: 8, completed: true } } });
+ok("RPE 8 holds at 50", hold.him.valueLb === 50, JSON.stringify(hold.him));
+const down = G.loadSuggestion(dbBench, 8, {}, set, inv, { "db-bench": { him: { load: 50, rpe: 9, completed: false } } });
+ok("missed reps suggests dropping below 50", down.him.valueLb < 50, JSON.stringify(down.him));
+ok("suggestion shows the last weight reference", /last 50/.test(up.him.last || ""), up.him.last);
+const enter = G.loadSuggestion(dbBench, 8, {}, set, inv, {});
+ok("no history and no 1RM -> 'enter weight'", enter.him.display === "enter weight", enter.him.display);
 
 console.log(`\n==== ${pass} passed, ${fail} failed ====`);
 process.exit(fail ? 1 : 0);
