@@ -68,6 +68,9 @@ No App Store, no build, no signing, no expiry. To update later, edit the files a
   10 max), and whether you completed it. Next time that movement appears it shows your last
   weight and **progresses it** — RPE ≤7 nudges up, 8–9 holds, a missed set backs off. Logging
   also feeds the recovery model so tomorrow's session knows what's still fatigued.
+- **Slot continuity:** within the program, each day's main/secondary/accessory **slot remembers
+  the movement you actually did** and reuses it next time, so your load history accumulates on
+  one lift instead of scattering. Swap any time — the swapped movement becomes the new slot pick.
 - **Export backup** saves your data to a JSON file; **Import** loads it. Data lives on the
   device, so drive each session from one phone and use export/import to sync the other.
 

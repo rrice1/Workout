@@ -286,5 +286,20 @@ const rdlHist = [{ date: today, focus: "x", items: [{ movementId: "rdl-bb", patt
 const rv = G.weeklySets(rdlHist, today);
 ok("multi-muscle move counts its bucket once (no double count)", rv.sets["ham/glutes"] === 3, `ham/glutes=${rv.sets["ham/glutes"]}`);
 
+console.log("\n== Slot-level stickiness ==");
+// Main strength + accessory items carry a slotKey like "Push Strength::strength1::0".
+const ps = G.buildProgramSession(DATA, { today, history: [], maxes: {}, settings: {}, day: "Push Strength", seed: 4 });
+const mainItem = ps.blocks.find(b => b.role === "strength1").items[0];
+ok("main lift item has a slotKey", typeof mainItem.slotKey === "string" && mainItem.slotKey.indexOf("strength1") > -1, mainItem.slotKey);
+// Forcing a slot reuses that movement next time (if it's a valid candidate).
+const forced = G.buildProgramSession(DATA, { today, history: [], maxes: {}, settings: {}, day: "Push Strength", seed: 4, slots: { "Push Strength::strength1::0": "db-bench" } });
+ok("sticky slot reuses the recorded movement", forced.blocks.find(b => b.role === "strength1").items[0].movement.id === "db-bench", forced.blocks.find(b => b.role === "strength1").items[0].movement.id);
+// Stickiness yields to validity: an avoided sticky movement is not forced.
+const avoidedStick = G.buildProgramSession(DATA, { today, history: [], maxes: {}, settings: {}, day: "Push Strength", seed: 4, slots: { "Push Strength::strength1::0": "db-bench" }, avoidList: ["db-bench"] });
+ok("avoided sticky movement is not used", avoidedStick.blocks.find(b => b.role === "strength1").items[0].movement.id !== "db-bench");
+// Slot keys are stable across regenerations of the same day.
+const ps2 = G.buildProgramSession(DATA, { today, history: [], maxes: {}, settings: {}, day: "Push Strength", seed: 9 });
+ok("slot keys are stable for a day regardless of seed", ps2.blocks.find(b => b.role === "strength1").items[0].slotKey === mainItem.slotKey);
+
 console.log(`\n==== ${pass} passed, ${fail} failed ====`);
 process.exit(fail ? 1 : 0);

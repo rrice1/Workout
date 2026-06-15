@@ -620,6 +620,12 @@ function buildProgramSession(data, opts) {
   const usedIds = new Set();
   const note = (m) => { usedIds.add(m.id); };
 
+  // Slot stickiness: each trainable slot (day::role::ordinal) remembers the movement you
+  // last did, so progression accumulates on one lift instead of scattering across swaps.
+  const slots = opts.slots || {};
+  const slotCounter = {};
+  const slotKey = (role) => { const i = slotCounter[role] || 0; slotCounter[role] = i + 1; return `${opts.day}::${role}::${i}`; };
+
   function cand(spec) {
     return pool.filter((m) =>
       (!spec.patterns || spec.patterns.includes(m.pattern)) &&
@@ -644,21 +650,37 @@ function buildProgramSession(data, opts) {
     if (!cs.length) cs = cand({ patterns: spec.patterns, roles: spec.roles });
     if (!cs.length) cs = cand({ patterns: spec.patterns });
     if (!cs.length) return null;
-    const m = pickWeighted(cs, score, rng); note(m);
-    return { name, role, intensity, items: [item(m, spec.reps, spec.scheme, spec.slot)] };
+    const sk = slotKey(role);
+    // Reuse last time's movement for this slot if it's still a valid choice (stickiness).
+    let m = slots[sk] ? cs.find((x) => x.id === slots[sk]) : null;
+    if (!m) m = pickWeighted(cs, score, rng);
+    note(m);
+    const it = item(m, spec.reps, spec.scheme, spec.slot); it.slotKey = sk;
+    return { name, role, intensity, items: [it] };
   }
   function superset(name, role, intensity, specA, specB, reps, scheme) {
+    const sk0 = slotKey(role), sk1 = slotKey(role);
     const aS = cand(specA), bS = cand(specB);
     const pairs = [];
     for (const a of aS) for (const b of bS) {
       if (a.id === b.id) continue;
       const d = pairZoneDistance(gym, a, b).dist;
-      if (d <= 1) pairs.push({ a, b, s: score(a) + score(b) + (d === 0 ? 0.8 : 0) });
+      if (d <= 1) {
+        let s = score(a) + score(b) + (d === 0 ? 0.8 : 0);
+        if (slots[sk0] === a.id) s += 0.6; // soft stickiness for accessory slots
+        if (slots[sk1] === b.id) s += 0.6;
+        pairs.push({ a, b, s });
+      }
     }
     let items = [];
-    if (pairs.length) { const p = pickWeighted(pairs, (x) => x.s, rng); items = [item(p.a, reps, scheme), item(p.b, reps, scheme)]; note(p.a); note(p.b); }
-    else if (aS.length) { const a = pickWeighted(aS, score, rng); items = [item(a, reps, scheme)]; note(a); }
-    else return null;
+    if (pairs.length) {
+      const p = pickWeighted(pairs, (x) => x.s, rng);
+      const ia = item(p.a, reps, scheme); ia.slotKey = sk0;
+      const ib = item(p.b, reps, scheme); ib.slotKey = sk1;
+      items = [ia, ib]; note(p.a); note(p.b);
+    } else if (aS.length) {
+      const a = pickWeighted(aS, score, rng); const ia = item(a, reps, scheme); ia.slotKey = sk0; items = [ia]; note(a);
+    } else return null;
     return { name, role, intensity, items };
   }
   function circuit(name, role, intensity, spec, n, scheme, reps) {
@@ -851,7 +873,7 @@ if (typeof document !== "undefined") {
       const raw = localStorage.getItem(STORE_KEY);
       if (raw) return JSON.parse(raw);
     } catch (e) {}
-    return { history: [], maxes: {}, progress: {}, program: { daysPerWeek: 6, logged: 0 }, settings: { bars: { him: "mens", her: "womens" } }, avoidList: [] };
+    return { history: [], maxes: {}, progress: {}, slots: {}, program: { daysPerWeek: 6, logged: 0 }, settings: { bars: { him: "mens", her: "womens" } }, avoidList: [] };
   }
   function saveState() { localStorage.setItem(STORE_KEY, JSON.stringify(STATE)); }
   function todayStr() { const d = new Date(); return d.toISOString().slice(0, 10); }
@@ -868,6 +890,7 @@ if (typeof document !== "undefined") {
       return;
     }
     STATE.program = STATE.program || { daysPerWeek: 6, logged: 0 };
+    STATE.slots = STATE.slots || {};
     renderProgram();
     renderWeek();
     renderFocusPicker();
@@ -885,7 +908,7 @@ if (typeof document !== "undefined") {
 
   function generate(choice) {
     const seed = (Date.now() & 0xffffffff) ^ Math.floor(Math.random() * 1e9);
-    const base = { today: todayStr(), history: STATE.history, maxes: STATE.maxes, progress: STATE.progress || {}, settings: STATE.settings, avoidList: STATE.avoidList, seed };
+    const base = { today: todayStr(), history: STATE.history, maxes: STATE.maxes, progress: STATE.progress || {}, slots: STATE.slots || {}, settings: STATE.settings, avoidList: STATE.avoidList, seed };
     if (choice && PROGRAM_DAYS[choice]) {
       CURRENT = buildProgramSession(DATA, Object.assign({ day: choice, mesoWeek: mesocycleWeek(STATE.program) }, base));
     } else {
@@ -1004,6 +1027,7 @@ if (typeof document !== "undefined") {
       // Keep the main-lift scheme on S1 swaps; otherwise recompute (handles time/distance moves).
       prescription: slot === "strength1" ? item.prescription : prescribe(next, slot, Math.random),
       load: loadSuggestion(next, reps, STATE.maxes, STATE.settings, DATA.gym.inventory, STATE.progress || {}),
+      slotKey: item.slotKey, // keep the slot so logging records the swapped movement for next time
     };
     assignZones(DATA.gym, CURRENT.blocks);
     CURRENT.zonePath = CURRENT.blocks.map((b) => b.zone).filter((z, i, a) => z && (i === 0 || z !== a[i - 1]));
@@ -1089,6 +1113,9 @@ if (typeof document !== "undefined") {
         });
       });
       STATE.history.unshift(sessionToHistoryEntry(CURRENT)); // newest-first, for fatigue
+      // Remember which movement filled each slot, so it sticks next time (progression continuity).
+      STATE.slots = STATE.slots || {};
+      CURRENT.blocks.forEach((b) => b.items.forEach((it) => { if (it.slotKey) STATE.slots[it.slotKey] = it.movement.id; }));
       // Advance the program sequence only when a PROGRAM day is logged (not freestyle).
       let advanced = "";
       if (CURRENT.mode === "program") {
