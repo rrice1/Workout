@@ -119,6 +119,51 @@ ok("has 4 blocks (warmup/s1/s2/metcon)", full.blocks.length === 4, full.blocks.m
 ok("zonePath is defined", Array.isArray(full.zonePath) && full.zonePath.length >= 1, JSON.stringify(full.zonePath));
 ok("history round-trip produces items", G.sessionToHistoryEntry(full).items.length > 0);
 
+console.log("\n== Warm-up is mobility, not loaded lifts; holds are time-based ==");
+let loadedInWarmup = 0, warmups = 0;
+for (let seed = 1; seed <= 40; seed++) {
+  const s = G.buildSession(DATA, { today, history: [], maxes: {}, settings: {}, seed });
+  const wu = s.blocks.find(b => b.name.startsWith("Warm")); warmups++;
+  // non-cardio warm-up items must be unloaded mobility/bodyweight
+  for (const it of wu.items) if (!it.movement.cardio && it.movement.loadable) loadedInWarmup++;
+}
+ok("no loaded lifts appear in the warm-up", loadedInWarmup === 0, `${loadedInWarmup} loaded items`);
+// Plank prescribed by time, not reps
+ok("plank warm-up prescription is time", /s|hold/.test(G.prescribe(movements.find(m=>m.id==="plank"), "warmup")), G.prescribe(movements.find(m=>m.id==="plank"),"warmup"));
+ok("plank accessory prescription is a timed hold", /s/.test(G.prescribe(movements.find(m=>m.id==="plank"), "strength2")), G.prescribe(movements.find(m=>m.id==="plank"),"strength2"));
+ok("squat reps prescription is rep-based", /x|×/.test(G.prescribe(movements.find(m=>m.id==="db-row"), "strength2")), G.prescribe(movements.find(m=>m.id==="db-row"),"strength2"));
+ok("carry prescription is distance", /m/.test(G.prescribe(movements.find(m=>m.id==="farmers-carry"), "metcon")), G.prescribe(movements.find(m=>m.id==="farmers-carry"),"metcon"));
+
+console.log("\n== Warm-up targets the day's regions ==");
+let lowerHits = 0, lowerTrials = 0;
+for (let seed = 1; seed <= 40; seed++) {
+  const s = G.buildSession(DATA, { today, history: [], maxes: {}, settings: {}, focusOverride: "Squat & Pull", seed });
+  const wu = s.blocks.find(b => b.name.startsWith("Warm"));
+  lowerTrials++;
+  if (wu.items.some(it => it.movement.region === "lower" || it.movement.region === "pull" || it.movement.region === "full")) lowerHits++;
+}
+ok("squat/pull day warm-up includes relevant-region mobility", lowerHits >= lowerTrials * 0.8, `${lowerHits}/${lowerTrials}`);
+
+console.log("\n== Supersets share the SAME zone (honest label) most of the time ==");
+let sameZone = 0, supTotal = 0, withinOne = 0, blockZoneHonest = 0, blockZoneTotal = 0;
+for (const f of Object.keys(G.FOCUSES)) for (let seed = 1; seed <= 30; seed++) {
+  const s = G.buildSession(DATA, { today, history: [], maxes: {}, settings: {}, focusOverride: f, seed });
+  const sup = s.blocks.find(b => b.name.startsWith("Strength 2"));
+  if (sup && sup.items.length === 2) {
+    supTotal++;
+    const d = G.pairZoneDistance(gym, sup.items[0].movement, sup.items[1].movement).dist;
+    if (d === 0) sameZone++;
+    if (d <= 1) withinOne++;
+  }
+  // Any block that carries a zone label: every item must actually include that zone.
+  for (const b of s.blocks) {
+    if (b.zone) { blockZoneTotal++; if (b.items.every(it => (it.movement.zones||[]).includes(b.zone))) blockZoneHonest++; }
+  }
+}
+ok("every superset is within 1 zone (hard rule)", withinOne === supTotal, `${withinOne}/${supTotal}`);
+ok("most supersets are exactly same-zone", sameZone >= supTotal * 0.75, `${sameZone}/${supTotal}`);
+ok("a labeled block's zone is shared by all its moves (no false labels)", blockZoneHonest === blockZoneTotal, `${blockZoneHonest}/${blockZoneTotal}`);
+
 console.log("\n== No duplicate movement within a session ==");
 let dupes = 0;
 for (let seed = 1; seed <= 50; seed++) {

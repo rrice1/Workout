@@ -98,6 +98,15 @@ button:disabled { opacity: 0.45; }
 .mname { font-weight: 600; font-size: 15px; }
 .muscles { color: var(--muted); font-weight: 400; font-size: 12px; }
 .mpresc { color: var(--accent2); font-size: 14px; margin: 2px 0; }
+.mzone {
+  display: inline-block;
+  background: #20262f;
+  color: var(--muted);
+  border-radius: 6px;
+  padding: 1px 6px;
+  font-size: 11px;
+  margin-left: 4px;
+}
 
 .loads { display: flex; gap: 16px; font-size: 14px; color: var(--muted); margin: 3px 0; }
 .loads b { color: var(--good); }

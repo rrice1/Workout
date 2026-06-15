@@ -18,6 +18,39 @@ const ROLE_INTENSITY = { strength1: "heavy", strength2: "med", metcon: "light", 
 // Recovery window (days) over which a trained pattern's fatigue decays to zero.
 const PATTERN_WINDOW = { core: 2, conditioning: 2, _default: 3 };
 
+// Coarse body region each pattern trains — used to warm up the right areas.
+const PATTERN_REGION = {
+  squat: "lower", hinge: "lower", lunge: "lower",
+  "h-push": "push", "v-push": "push", "h-pull": "pull", "v-pull": "pull",
+  olympic: "full", carry: "full", core: "core", conditioning: "cardio", mobility: "full",
+};
+
+// Which body regions a focus's session will train (so the warm-up can target them).
+function computeTargetRegions(cfg) {
+  const pats = [].concat(cfg.s1 || [], cfg.s2a || [], cfg.s2b || [], cfg.metconOnly ? cfg.metcon : []);
+  return new Set(pats.map((p) => PATTERN_REGION[p]).filter(Boolean));
+}
+
+// Unit-aware prescription text. slot ∈ warmup | strength1 | strength2 | metcon.
+function prescribe(m, slot, rng) {
+  const r = rng || (() => 0.5);
+  if (m.cardio) return slot === "warmup" ? "1–2 min easy" : ["10–15 cal", "200–250 m", "60–90s"][Math.floor(r() * 3)];
+  const u = m.unit || "reps";
+  if (u === "time") {
+    if (slot === "warmup") return "30s hold";
+    if (slot === "strength2") return "3 × 45–60s";
+    return ":30–:45 hold";
+  }
+  if (u === "distance") {
+    if (slot === "warmup") return "1 length";
+    if (slot === "strength2") return "3 × 20–30 m";
+    return "30–40 m";
+  }
+  if (slot === "warmup") return "x8–10 (light)";
+  if (slot === "strength2") return m.pattern === "core" ? "3×12–15" : "3×10 @ RPE 8";
+  return "x" + [8, 10, 12, 15][Math.floor(r() * 4)];
+}
+
 // Focus templates: which patterns each focus loads, in which slot.
 const FOCUSES = {
   "Squat & Pull": { s1: ["squat"], s2a: ["v-pull", "h-pull"], s2b: ["lunge", "core"], metcon: ["hinge", "conditioning", "core"] },
@@ -319,16 +352,21 @@ function buildSession(data, opts) {
   function note(id) { usedIds.add(id); }
 
   // --- Warm Up -------------------------------------------------------------
+  // Light cardio + bodyweight mobility (no loaded lifts), biased toward the body
+  // regions this session will actually train.
+  const targetRegions = computeTargetRegions(cfg);
   const warmCardio = candidatesFor(pool, { role: "warmup", cardio: true });
-  const warmMob = candidatesFor(pool, { role: "warmup", cardio: false }).filter((m) => !usedIds.has(m.id));
+  const warmMob = candidatesFor(pool, { role: "warmup", cardio: false }).filter((m) => !m.loadable && !usedIds.has(m.id));
   const warmItems = [];
-  if (warmCardio.length) { const c = warmCardio[Math.floor(rng() * warmCardio.length)]; warmItems.push({ movement: c, prescription: "1–2 min easy" }); note(c.id); }
-  for (let i = 0; i < 2 && warmMob.length; i++) {
-    const m = warmMob.splice(Math.floor(rng() * warmMob.length), 1)[0];
-    warmItems.push({ movement: m, prescription: "x8–10 (light)" });
-    note(m.id);
+  if (warmCardio.length) { const c = warmCardio[Math.floor(rng() * warmCardio.length)]; warmItems.push({ movement: c, prescription: prescribe(c, "warmup", rng) }); note(c.id); }
+  const mobScore = (m) => 1 + ((targetRegions.has(m.region) || m.region === "full") ? 0.8 : 0);
+  let mobPool = warmMob.slice();
+  for (let i = 0; i < 3 && mobPool.length; i++) {
+    const m = pickWeighted(mobPool, mobScore, rng);
+    warmItems.push({ movement: m, prescription: prescribe(m, "warmup", rng) });
+    note(m.id); mobPool = mobPool.filter((x) => x.id !== m.id);
   }
-  blocks.push({ name: "Warm Up", time: "~8 min", structure: "easy ramp", items: warmItems });
+  blocks.push({ name: "Warm Up", time: "~8 min", structure: "light mobility ramp", items: warmItems });
 
   // --- Strength 1 & 2 (skipped on Conditioning days) -----------------------
   if (!cfg.metconOnly) {
@@ -369,8 +407,13 @@ function buildSession(data, opts) {
     const pairs = [];
     for (const ca of aCands) for (const cb of bCands) {
       if (ca.id === cb.id) continue;
-      if (pairZoneDistance(gym, ca, cb).dist <= 1) {
-        pairs.push({ a: ca, b: cb, score: scoreByFreshness(ca, patternFatigue, pushPullBias) + scoreByFreshness(cb, patternFatigue) });
+      const dist = pairZoneDistance(gym, ca, cb).dist;
+      if (dist <= 1) {
+        // Strongly prefer pairs that share the EXACT same zone (dist 0), so a superset
+        // reads honestly (e.g. machine + machine in C, or banded pull-up + lift in B)
+        // instead of straddling two zones.
+        const zoneBonus = dist === 0 ? 0.8 : 0;
+        pairs.push({ a: ca, b: cb, score: scoreByFreshness(ca, patternFatigue, pushPullBias) + scoreByFreshness(cb, patternFatigue) + zoneBonus });
       }
     }
     if (pairs.length) {
@@ -382,7 +425,7 @@ function buildSession(data, opts) {
     }
     const s2items = [];
     if (a) { s2items.push({ movement: a, prescription: "4×8 @ RPE 8", load: loadSuggestion(a, 8, maxes, settings, inv) }); note(a.id); (a.muscles || []).forEach((m) => usedMuscles.add(m)); }
-    if (b) { s2items.push({ movement: b, prescription: b.pattern === "core" ? "3×12–15" : "3×10 @ RPE 8", load: loadSuggestion(b, 12, maxes, settings, inv) }); note(b.id); (b.muscles || []).forEach((m) => usedMuscles.add(m)); }
+    if (b) { s2items.push({ movement: b, prescription: prescribe(b, "strength2", rng), load: loadSuggestion(b, 12, maxes, settings, inv) }); note(b.id); (b.muscles || []).forEach((m) => usedMuscles.add(m)); }
     if (s2items.length) blocks.push({ name: "Strength 2 (superset)", time: "9–10 min", structure: "superset", items: s2items });
   }
 
@@ -402,13 +445,13 @@ function buildSession(data, opts) {
   if (cardioCands.length) {
     const freshCardio = cardioCands.filter((m) => !usedIds.has(m.id));
     const c = pickWeighted(freshCardio.length ? freshCardio : cardioCands, (m) => scoreByFreshness(m, patternFatigue), rng);
-    metItems.push({ movement: c, prescription: "moderate pace" }); note(c.id);
+    metItems.push({ movement: c, prescription: prescribe(c, "metcon", rng) }); note(c.id);
   }
   const used = new Set(metItems.map((i) => i.movement.id));
   let pickPool = moveCands.filter((m) => !used.has(m.id));
   for (let i = metItems.length; i < metconN && pickPool.length; i++) {
     const m = pickWeighted(pickPool, (mm) => scoreByFreshness(mm, patternFatigue, muscleAvoid) + 0.3, rng);
-    metItems.push({ movement: m, prescription: repForMetcon(m, rng) });
+    metItems.push({ movement: m, prescription: prescribe(m, "metcon", rng) });
     used.add(m.id);
     pickPool = pickPool.filter((x) => x.id !== m.id);
   }
@@ -421,32 +464,28 @@ function buildSession(data, opts) {
   return { date: today, focus, zonePath: path, blocks, seed: opts.seed || 1 };
 }
 
-function repForMetcon(m, rng) {
-  if (m.cardio) return "12–15 cal / 200–250 m";
-  if (m.pattern === "core") return "x15–20";
-  const reps = [8, 10, 12, 15][Math.floor(rng() * 4)];
-  return `x${reps}`;
-}
-
-// Greedily assign each block a single zone to minimize walking along the sequence.
+// Assign each block the zone that ALL its movements share (honest label). If the
+// movements don't share a single zone (e.g. a superset straddling B and C), leave
+// the block zone null and let each movement show its own zone in the UI.
 function assignZones(gym, blocks) {
   let prev = null;
   for (const bk of blocks) {
-    const zoneVotes = {};
+    let shared = null;
     for (const it of bk.items) {
-      for (const z of it.movement.zones || []) zoneVotes[z] = (zoneVotes[z] || 0) + 1;
+      const zs = it.movement.zones || [];
+      shared = shared === null ? new Set(zs) : new Set(zs.filter((z) => shared.has(z)));
     }
-    const zones = Object.keys(zoneVotes);
-    if (!zones.length) { bk.zone = null; continue; }
-    // Prefer the zone closest to the previous block; break ties by vote count.
-    zones.sort((z1, z2) => {
-      const d = (prev ? zoneDist(gym, z1, prev) : 0) - (prev ? zoneDist(gym, z2, prev) : 0);
-      if (d !== 0) return d;
-      return zoneVotes[z2] - zoneVotes[z1];
-    });
-    bk.zone = zones[0];
-    bk.zoneName = gym.zones[bk.zone] ? gym.zones[bk.zone].name : "";
-    prev = bk.zone;
+    const arr = shared ? [...shared] : [];
+    if (arr.length) {
+      // Among the shared zones, pick the one closest to the previous block.
+      arr.sort((z1, z2) => (prev ? zoneDist(gym, z1, prev) - zoneDist(gym, z2, prev) : zoneOrder(gym, z1) - zoneOrder(gym, z2)));
+      bk.zone = arr[0];
+      bk.zoneName = gym.zones[bk.zone] ? gym.zones[bk.zone].name : "";
+      prev = bk.zone;
+    } else {
+      bk.zone = null;
+      bk.zoneName = "";
+    }
   }
 }
 
@@ -494,7 +533,7 @@ if (typeof module !== "undefined" && module.exports) {
     computeFatigue, freshness, balanceBias, filterCandidates, lastUsed,
     pickFocus, buildSession, roundLoad, nearestBarbell, nearestInLadder,
     loadSuggestion, swapCandidates, sessionToHistoryEntry, pctForReps,
-    pairZoneDistance, FOCUSES,
+    pairZoneDistance, prescribe, computeTargetRegions, FOCUSES,
   };
 }
 
@@ -589,7 +628,8 @@ if (typeof document !== "undefined") {
       bk.items.forEach((it, ii) => {
         html += `<div class="move" data-bi="${bi}" data-ii="${ii}">`;
         html += `<div class="mname">${it.movement.name} <span class="muscles">${(it.movement.muscles || []).join(" · ")}</span></div>`;
-        html += `<div class="mpresc">${it.prescription || ""}</div>`;
+        const mz = (it.movement.zones || []).join("/");
+        html += `<div class="mpresc">${it.prescription || ""}${mz ? ` <span class="mzone">Zone ${mz}</span>` : ""}</div>`;
         if (it.load) {
           html += `<div class="loads"><span>You: <b>${it.load.him.display}</b></span><span>Her: <b>${it.load.her.display}</b></span></div>`;
         }
@@ -612,10 +652,12 @@ if (typeof document !== "undefined") {
     }).filter((m) => !sessionMovementIds().includes(m.id));
     if (!cands.length) { alert("No same-region alternative available."); return; }
     const next = cands[0];
+    const slot = role === "warmup" ? "warmup" : (role === "metcon" ? "metcon" : (role === "strength1" ? "strength1" : "strength2"));
     const reps = role === "strength1" ? 3 : (next.pattern === "core" ? 12 : 8);
     CURRENT.blocks[bi].items[ii] = {
       movement: next,
-      prescription: item.prescription,
+      // Keep the main-lift scheme on S1 swaps; otherwise recompute (handles time/distance moves).
+      prescription: slot === "strength1" ? item.prescription : prescribe(next, slot, Math.random),
       load: loadSuggestion(next, reps, STATE.maxes, STATE.settings, DATA.gym.inventory),
     };
     assignZones(DATA.gym, CURRENT.blocks);
