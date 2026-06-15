@@ -77,7 +77,7 @@ ok("avoided movement is filtered out", !avoided);
 
 console.log("\n== Swap: same region, different move ==");
 const bsquat = movements.find(m => m.id === "back-squat-bb");
-const swaps = G.swapCandidates(DATA, bsquat, "strength2", { today, history: [], avoidList: [] });
+const swaps = G.swapCandidates(DATA, bsquat, { today, history: [], avoidList: [] });
 ok("swap returns same-region (lower) alternatives", swaps.length > 0 && swaps.every(m => m.region === "lower" && m.id !== "back-squat-bb"), swaps.slice(0,3).map(m=>m.id).join(","));
 
 console.log("\n== Pathing: supersets stay within adjacent zones (ALL focuses) ==");
@@ -176,6 +176,50 @@ ok("no session repeats a movement", dupes === 0, `${dupes}/50 had a dupe`);
 console.log("\n== Conditioning focus skips heavy strength ==");
 const cond = G.buildSession(DATA, { today, history: [], maxes: {}, settings: {}, focusOverride: "Conditioning", seed: 3 });
 ok("conditioning has no Strength 1 block", !cond.blocks.some(b => b.name.startsWith("Strength 1")), cond.blocks.map(b=>b.name).join(" | "));
+
+console.log("\n== Prescriptive program: day archetypes ==");
+const DAYS = Object.keys(G.PROGRAM_DAYS);
+ok("7 program days defined", DAYS.length === 7, DAYS.join(", "));
+let forbiddenViolations = 0, emptyBlockDays = 0, prepLoaded = 0, focusMismatch = 0, builtDays = 0;
+for (const day of DAYS) {
+  const cfg = G.PROGRAM_DAYS[day];
+  for (let seed = 1; seed <= 25; seed++) {
+    const s = G.buildProgramSession(DATA, { today, history: [], maxes: {}, settings: {}, day, seed });
+    builtDays++;
+    if (s.focus !== day) focusMismatch++;
+    if (!s.blocks.length) emptyBlockDays++;
+    const allMv = s.blocks.flatMap(b => b.items.map(i => i.movement));
+    // forbidden patterns must never appear
+    for (const m of allMv) if ((cfg.forbidden || []).includes(m.pattern)) forbiddenViolations++;
+    // prep block must be unloaded mobility/cardio
+    const prep = s.blocks.find(b => b.role === "warmup");
+    if (prep) for (const it of prep.items) if (!it.movement.cardio && it.movement.loadable) prepLoaded++;
+  }
+}
+ok("program day is always honored", focusMismatch === 0, `${focusMismatch} mismatches`);
+ok("no day produces an empty session", emptyBlockDays === 0, `${emptyBlockDays}`);
+ok("forbidden patterns never appear in their day", forbiddenViolations === 0, `${forbiddenViolations} violations`);
+ok("prep block has no loaded lifts", prepLoaded === 0, `${prepLoaded}`);
+
+// Specific identity checks
+function dayMoves(day, seed) { return G.buildProgramSession(DATA, { today, history: [], maxes: {}, settings: {}, day, seed }).blocks.flatMap(b => b.items.map(i => i.movement)); }
+let pushHasLegs = 0, pullHasLegs = 0;
+for (let seed = 1; seed <= 25; seed++) {
+  if (dayMoves("Push Strength", seed).some(m => ["squat", "hinge", "lunge"].includes(m.pattern))) pushHasLegs++;
+  if (dayMoves("Pull Strength", seed).some(m => ["squat", "hinge", "lunge"].includes(m.pattern))) pullHasLegs++;
+}
+ok("Push Strength never programs legs", pushHasLegs === 0, `${pushHasLegs}`);
+ok("Pull Strength never programs legs", pullHasLegs === 0, `${pullHasLegs}`);
+// Pump day uses isolation (arms/delts/calves) and stays easy
+let pumpHeavy = 0;
+for (let seed = 1; seed <= 25; seed++) {
+  const s = G.buildProgramSession(DATA, { today, history: [], maxes: {}, settings: {}, day: "Pump / Recovery", seed });
+  if (s.blocks.some(b => b.intensity === "heavy")) pumpHeavy++;
+}
+ok("Pump / Recovery has no heavy blocks", pumpHeavy === 0, `${pumpHeavy}`);
+// Upper Hypertrophy pulls in isolation movements that now exist
+const uh = dayMoves("Upper Hypertrophy", 3).map(m => m.pattern);
+ok("Upper Hypertrophy includes arms or delts isolation", uh.includes("arms") || uh.includes("delts"), uh.join(","));
 
 console.log(`\n==== ${pass} passed, ${fail} failed ====`);
 process.exit(fail ? 1 : 0);

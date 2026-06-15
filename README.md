@@ -44,8 +44,13 @@ No App Store, no build, no signing, no expiry. To update later, edit the files a
 
 ## Using it
 
-- **Generate today** builds a session (Warm Up → Strength 1 → Strength 2 superset → MetCon).
-  Leave Focus on *Auto* to let it pick the freshest focus, or choose one.
+- Pick a **Workout type**, then **Generate**. Two families:
+  - **Program (prescriptive split):** Push Strength, Lower Strength — Squat, Pull Strength,
+    Conditioning + Core, Upper Hypertrophy, Lower Hypertrophy — Hinge, Pump / Recovery. Each day
+    has a clear identity, its own block structure, forbidden patterns (e.g. no legs on push day),
+    and an intensity cap — built for training 6–7 days/week without frying yourself.
+  - **Freestyle (CrossFit-style):** the original generator — Warm Up → Strength 1 → Strength 2
+    superset → MetCon. Leave it on *Auto* to pick the freshest focus, or choose a specific one.
 - Each loadable move shows **You / Her** suggested weights, computed from your tracked
   1-rep-max estimates and snapped to weights you can actually load (DB ladder, plate pairs,
   KB kg steps). Tap to edit anytime.

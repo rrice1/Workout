@@ -23,6 +23,7 @@ const PATTERN_REGION = {
   squat: "lower", hinge: "lower", lunge: "lower",
   "h-push": "push", "v-push": "push", "h-pull": "pull", "v-pull": "pull",
   olympic: "full", carry: "full", core: "core", conditioning: "cardio", mobility: "full",
+  arms: "push", delts: "push", calves: "lower",
 };
 
 // Which body regions a focus's session will train (so the warm-up can target them).
@@ -461,7 +462,179 @@ function buildSession(data, opts) {
   assignZones(gym, blocks);
   const path = blocks.map((bk) => bk.zone).filter((z, i, arr) => z && (i === 0 || z !== arr[i - 1]));
 
-  return { date: today, focus, zonePath: path, blocks, seed: opts.seed || 1 };
+  return { date: today, focus, mode: "freestyle", zonePath: path, blocks, seed: opts.seed || 1 };
+}
+
+// ----------------------------------------------------------------------------
+// Prescriptive program: day archetypes + block engine (see Ideas.md)
+// ----------------------------------------------------------------------------
+
+// Each day has a clear identity: primary patterns it trains, forbidden patterns it
+// will never include, an intensity cap, and an ordered list of block types. A "?"
+// suffix marks an optional block (included roughly half the time).
+const PROGRAM_DAYS = {
+  "Push Strength": { category: "upper", primary: ["h-push", "v-push"], secondary: ["delts", "arms"], forbidden: ["squat", "hinge", "lunge", "h-pull", "v-pull"], cap: "heavy",
+    blocks: ["prep", "main_strength", "secondary_strength", "accessory_superset", "finisher?"] },
+  "Lower Strength — Squat": { category: "lower", primary: ["squat"], secondary: ["lunge", "calves", "core", "hinge"], forbidden: ["h-push", "v-push", "h-pull", "v-pull"], cap: "heavy",
+    blocks: ["prep", "main_strength", "secondary_strength", "accessory", "core"] },
+  "Pull Strength": { category: "upper", primary: ["h-pull", "v-pull"], secondary: ["arms", "delts"], forbidden: ["squat", "hinge", "lunge", "h-push", "v-push"], cap: "heavy",
+    blocks: ["prep", "main_strength", "secondary_strength", "accessory_superset", "carry_core"] },
+  "Conditioning + Core": { category: "conditioning", primary: ["conditioning", "core"], secondary: ["core"], forbidden: [], cap: "moderate",
+    blocks: ["prep", "conditioning", "core", "mobility"] },
+  "Upper Hypertrophy": { category: "upper", primary: ["h-push", "h-pull", "v-push", "v-pull"], secondary: ["delts", "arms"], forbidden: ["squat", "hinge", "lunge"], cap: "moderate",
+    blocks: ["prep", "superset_a", "superset_b", "arms_delts"] },
+  "Lower Hypertrophy — Hinge": { category: "lower", primary: ["hinge"], secondary: ["lunge", "calves", "core"], forbidden: ["h-push", "v-push", "h-pull", "v-pull"], cap: "moderate",
+    blocks: ["prep", "main_hypertrophy", "secondary_hypertrophy", "accessory", "calves_core"] },
+  "Pump / Recovery": { category: "recovery", primary: ["arms", "delts", "calves", "core"], secondary: ["arms", "delts", "calves"], forbidden: ["squat", "hinge", "lunge", "olympic"], cap: "easy",
+    blocks: ["easy_cardio", "pump", "core", "mobility"] },
+};
+
+function patternsFor(cfg, which) {
+  const p = cfg.primary || [], s = cfg.secondary || [];
+  if (which === "primary") return p;
+  if (which === "secondary") return s.length ? s : p;
+  return [...new Set([...p, ...s])];
+}
+
+function buildProgramSession(data, opts) {
+  const { movements, gym } = data;
+  const today = opts.today;
+  const history = opts.history || [];
+  const maxes = opts.maxes || {};
+  const settings = opts.settings || {};
+  const inv = gym.inventory;
+  const rng = makeRng(opts.seed || 1);
+  const cfg = PROGRAM_DAYS[opts.day];
+  if (!cfg) throw new Error("Unknown program day: " + opts.day);
+
+  const { patternFatigue } = computeFatigue(history, today);
+  const bias = balanceBias(history, today);
+  const forbidden = new Set(cfg.forbidden || []);
+  const pool = filterCandidates(movements, { today, history, avoidList: opts.avoidList || [] })
+    .filter((m) => !forbidden.has(m.pattern));
+  const targetRegions = new Set([].concat(cfg.primary || [], cfg.secondary || []).map((p) => PATTERN_REGION[p]).filter(Boolean));
+
+  const usedIds = new Set();
+  const note = (m) => { usedIds.add(m.id); };
+
+  function cand(spec) {
+    return pool.filter((m) =>
+      (!spec.patterns || spec.patterns.includes(m.pattern)) &&
+      (!spec.roles || (m.roles || []).some((r) => spec.roles.includes(r))) &&
+      (spec.loadable === undefined || m.loadable === spec.loadable) &&
+      (spec.cardio === undefined || m.cardio === spec.cardio) &&
+      !usedIds.has(m.id));
+  }
+  function score(m) {
+    let s = freshness(m.pattern, patternFatigue);
+    if (m.pattern === "h-push" || m.pattern === "v-push") s += bias.pushBias * 0.15;
+    if (m.pattern === "h-pull" || m.pattern === "v-pull") s += bias.pullBias * 0.15;
+    if (m.pattern === "squat") s += bias.squatBias * 0.15;
+    if (m.pattern === "hinge") s += bias.hingeBias * 0.15;
+    return s;
+  }
+  function item(m, reps, scheme, slot) {
+    return { movement: m, prescription: scheme || prescribe(m, slot || "strength2", rng), load: loadSuggestion(m, reps, maxes, settings, inv) };
+  }
+  function single(name, role, intensity, spec) {
+    let cs = cand({ patterns: spec.patterns, roles: spec.roles, loadable: spec.loadable });
+    if (!cs.length) cs = cand({ patterns: spec.patterns, roles: spec.roles });
+    if (!cs.length) cs = cand({ patterns: spec.patterns });
+    if (!cs.length) return null;
+    const m = pickWeighted(cs, score, rng); note(m);
+    return { name, role, intensity, items: [item(m, spec.reps, spec.scheme, spec.slot)] };
+  }
+  function superset(name, role, intensity, specA, specB, reps, scheme) {
+    const aS = cand(specA), bS = cand(specB);
+    const pairs = [];
+    for (const a of aS) for (const b of bS) {
+      if (a.id === b.id) continue;
+      const d = pairZoneDistance(gym, a, b).dist;
+      if (d <= 1) pairs.push({ a, b, s: score(a) + score(b) + (d === 0 ? 0.8 : 0) });
+    }
+    let items = [];
+    if (pairs.length) { const p = pickWeighted(pairs, (x) => x.s, rng); items = [item(p.a, reps, scheme), item(p.b, reps, scheme)]; note(p.a); note(p.b); }
+    else if (aS.length) { const a = pickWeighted(aS, score, rng); items = [item(a, reps, scheme)]; note(a); }
+    else return null;
+    return { name, role, intensity, items };
+  }
+  function circuit(name, role, intensity, spec, n, scheme, reps) {
+    let cs = cand(spec); const items = [];
+    for (let i = 0; i < n && cs.length; i++) { const m = pickWeighted(cs, score, rng); items.push(item(m, reps, scheme)); note(m); cs = cs.filter((x) => x.id !== m.id); }
+    return items.length ? { name, role, intensity, items } : null;
+  }
+  function prep() {
+    const wc = cand({ roles: ["warmup"], cardio: true });
+    const wm = cand({ roles: ["warmup"], cardio: false, loadable: false });
+    const items = [];
+    if (wc.length) { const c = wc[Math.floor(rng() * wc.length)]; items.push({ movement: c, prescription: prescribe(c, "warmup", rng) }); note(c); }
+    const mob = (m) => 1 + ((targetRegions.has(m.region) || m.region === "full") ? 0.8 : 0);
+    let mp = wm.slice();
+    for (let i = 0; i < 3 && mp.length; i++) { const m = pickWeighted(mp, mob, rng); items.push({ movement: m, prescription: prescribe(m, "warmup", rng) }); note(m); mp = mp.filter((x) => x.id !== m.id); }
+    return { name: "Warm Up / Prep", role: "warmup", intensity: "light", items };
+  }
+  function conditioning() {
+    const struct = chooseMetconStructure(rng);
+    const items = [];
+    const cardio = cand({ patterns: ["conditioning"], cardio: true });
+    if (cardio.length) { const c = pickWeighted(cardio, score, rng); items.push({ movement: c, prescription: prescribe(c, "metcon", rng) }); note(c); }
+    let mp = cand({ patterns: ["conditioning"], cardio: false });
+    for (let i = items.length; i < 3 && mp.length; i++) { const m = pickWeighted(mp, score, rng); items.push({ movement: m, prescription: prescribe(m, "metcon", rng) }); note(m); mp = mp.filter((x) => x.id !== m.id); }
+    return { name: "Conditioning", role: "conditioning", intensity: cfg.cap === "easy" ? "light" : "med", structure: struct.detail, items };
+  }
+  function mobility() {
+    let cs = cand({ patterns: ["mobility"] }); const items = [];
+    for (let i = 0; i < 2 && cs.length; i++) { const m = pickWeighted(cs, (x) => 1 + ((targetRegions.has(x.region) || x.region === "full") ? 0.5 : 0), rng); items.push({ movement: m, prescription: "45–60s ea" }); note(m); cs = cs.filter((x) => x.id !== m.id); }
+    return items.length ? { name: "Mobility", role: "mobility", intensity: "light", items } : null;
+  }
+  function comboBlock(name, specA, schemeA, repsA) {
+    const items = [];
+    const aS = cand(specA); if (aS.length) { const a = pickWeighted(aS, score, rng); items.push(item(a, repsA, schemeA, "metcon")); note(a); }
+    const cS = cand({ patterns: ["core"] }); if (cS.length) { const c = pickWeighted(cS, score, rng); items.push(item(c, 12, null, "strength2")); note(c); }
+    return items.length ? { name, role: "core", intensity: "light", items } : null;
+  }
+
+  function build(token) {
+    const optional = token.endsWith("?");
+    const t = optional ? token.slice(0, -1) : token;
+    if (optional && rng() < 0.5) return null;
+    switch (t) {
+      case "prep": return prep();
+      case "main_strength": { const ms = mainScheme(rng); return single("Strength 1 (main)", "strength1", "heavy", { patterns: patternsFor(cfg, "primary"), roles: ["strength1"], reps: ms.reps, scheme: ms.scheme }); }
+      case "secondary_strength": return single("Strength 2 (secondary)", "strength2", "med", { patterns: patternsFor(cfg, "primarySecondary"), roles: ["strength2"], reps: 8, scheme: "3×8 @ RPE 8" });
+      case "main_hypertrophy": return single("Main (hypertrophy)", "strength1", "med", { patterns: patternsFor(cfg, "primary"), roles: ["strength1", "strength2"], reps: 8, scheme: "4×8 @ RPE 8" });
+      case "secondary_hypertrophy": return single("Secondary (hypertrophy)", "strength2", "med", { patterns: patternsFor(cfg, "primarySecondary"), roles: ["strength2", "accessory"], reps: 11, scheme: "3×10–12" });
+      case "accessory": return single("Accessory", "accessory", "light", { patterns: patternsFor(cfg, "secondary"), roles: ["accessory", "strength2"], reps: 12, scheme: "3×12" });
+      case "accessory_superset": return superset("Accessory superset", "accessory", "light", { patterns: patternsFor(cfg, "secondary"), roles: ["accessory", "strength2"] }, { patterns: patternsFor(cfg, "secondary").concat(["core"]), roles: ["accessory", "strength2", "core"] }, 14, "3×12–15");
+      case "superset_a": return superset("Superset A (push/pull)", "strength2", "med", { patterns: ["h-push", "v-push"], roles: ["strength2", "accessory"] }, { patterns: ["h-pull", "v-pull"], roles: ["strength2", "accessory"] }, 10, "3×10");
+      case "superset_b": return superset("Superset B (push/pull)", "strength2", "med", { patterns: ["v-push", "h-push"], roles: ["strength2", "accessory"] }, { patterns: ["v-pull", "h-pull"], roles: ["strength2", "accessory"] }, 11, "3×10–12");
+      case "arms_delts": return superset("Arms & Delts", "accessory", "light", { patterns: ["arms"], roles: ["accessory"] }, { patterns: ["delts"], roles: ["accessory"] }, 14, "3×12–15");
+      case "pump": return circuit("Pump Circuit", "accessory", "light", { patterns: ["arms", "delts", "calves"], roles: ["accessory"] }, 4, "3×15–20", 15);
+      case "core": return circuit("Core", "core", "light", { patterns: ["core"] }, 2, null, 12);
+      case "carry_core": return comboBlock("Carry & Core", { patterns: ["carry"], roles: ["metcon"] }, null, 12);
+      case "calves_core": return comboBlock("Calves & Core", { patterns: ["calves"], roles: ["accessory"] }, "3×15–20", 15);
+      case "conditioning": return conditioning();
+      case "mobility": return mobility();
+      case "easy_cardio": { const c = cand({ patterns: ["conditioning"], cardio: true }); if (!c.length) return null; const m = pickWeighted(c, score, rng); note(m); return { name: "Easy Cardio (Zone 2)", role: "conditioning", intensity: "light", items: [{ movement: m, prescription: "20–30 min easy" }] }; }
+      default: return null;
+    }
+  }
+
+  const blocks = [];
+  for (const token of cfg.blocks) { const b = build(token); if (b && b.items && b.items.length) blocks.push(b); }
+  assignZones(gym, blocks);
+  const path = blocks.map((bk) => bk.zone).filter((z, i, a) => z && (i === 0 || z !== a[i - 1]));
+  return { date: today, focus: opts.day, mode: "program", category: cfg.category, zonePath: path, blocks, seed: opts.seed || 1 };
+}
+
+function mainScheme(rng) {
+  const opts = [
+    { scheme: "4×5 @ RPE 8", reps: 5 },
+    { scheme: "5×3 @ RPE 8–9", reps: 3 },
+    { scheme: "build to a heavy 3 (~3RM)", reps: 3 },
+    { scheme: "5×5 @ RPE 7–8", reps: 5 },
+  ];
+  return opts[Math.floor(rng() * opts.length)];
 }
 
 // Assign each block the zone that ALL its movements share (honest label). If the
@@ -493,9 +666,10 @@ function assignZones(gym, blocks) {
 function sessionToHistoryEntry(session) {
   const items = [];
   for (const bk of session.blocks) {
-    const intensity = ROLE_INTENSITY[blockRole(bk.name)] || "light";
+    const role = bk.role || blockRole(bk.name);
+    const intensity = bk.intensity || ROLE_INTENSITY[role] || "light";
     for (const it of bk.items) {
-      items.push({ movementId: it.movement.id, pattern: it.movement.pattern, muscles: it.movement.muscles || [], intensity, role: blockRole(bk.name) });
+      items.push({ movementId: it.movement.id, pattern: it.movement.pattern, muscles: it.movement.muscles || [], intensity, role });
     }
   }
   return { date: session.date, focus: session.focus, items };
@@ -509,11 +683,21 @@ function blockRole(name) {
   return "metcon";
 }
 
+// Map a block role to the prescription slot used by prescribe().
+function slotForRole(role) {
+  if (role === "warmup" || role === "mobility") return "warmup";
+  if (role === "strength1") return "strength1";
+  if (role === "conditioning" || role === "finisher" || role === "metcon") return "metcon";
+  return "strength2"; // strength2, accessory, core
+}
+
 // ----------------------------------------------------------------------------
 // Swap: find an equivalent movement (same region, compatible role, near zone)
 // ----------------------------------------------------------------------------
 
-function swapCandidates(data, currentMovement, role, opts) {
+// Equivalent movements: same body region, same loadable/cardio nature, and at least
+// one role in common (so an accessory swaps for an accessory, a main for a main).
+function swapCandidates(data, currentMovement, opts) {
   const { movements, gym } = data;
   const pool = filterCandidates(movements, { today: opts.today, history: opts.history || [], avoidList: opts.avoidList || [] });
   return pool.filter((m) =>
@@ -521,7 +705,7 @@ function swapCandidates(data, currentMovement, role, opts) {
     m.region === currentMovement.region &&
     m.loadable === currentMovement.loadable &&
     m.cardio === currentMovement.cardio &&
-    (m.roles || []).includes(role)
+    (m.roles || []).some((r) => (currentMovement.roles || []).includes(r))
   ).sort((a, b) => pairZoneDistance(gym, currentMovement, a).dist - pairZoneDistance(gym, currentMovement, b).dist);
 }
 
@@ -531,9 +715,9 @@ function swapCandidates(data, currentMovement, role, opts) {
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
     computeFatigue, freshness, balanceBias, filterCandidates, lastUsed,
-    pickFocus, buildSession, roundLoad, nearestBarbell, nearestInLadder,
+    pickFocus, buildSession, buildProgramSession, roundLoad, nearestBarbell, nearestInLadder,
     loadSuggestion, swapCandidates, sessionToHistoryEntry, pctForReps,
-    pairZoneDistance, prescribe, computeTargetRegions, FOCUSES,
+    pairZoneDistance, prescribe, computeTargetRegions, FOCUSES, PROGRAM_DAYS,
   };
 }
 
@@ -581,17 +765,15 @@ if (typeof document !== "undefined") {
     document.getElementById("avoidedBtn").onclick = () => renderAvoided();
   }
 
-  function generate(focusOverride) {
+  function generate(choice) {
     const seed = (Date.now() & 0xffffffff) ^ Math.floor(Math.random() * 1e9);
-    CURRENT = buildSession(DATA, {
-      today: todayStr(),
-      history: STATE.history,
-      maxes: STATE.maxes,
-      settings: STATE.settings,
-      avoidList: STATE.avoidList,
-      focusOverride,
-      seed,
-    });
+    const base = { today: todayStr(), history: STATE.history, maxes: STATE.maxes, settings: STATE.settings, avoidList: STATE.avoidList, seed };
+    if (choice && PROGRAM_DAYS[choice]) {
+      CURRENT = buildProgramSession(DATA, Object.assign({ day: choice }, base));
+    } else {
+      // Freestyle CrossFit-style: a legacy focus name, or undefined for auto.
+      CURRENT = buildSession(DATA, Object.assign({ focusOverride: (choice && FOCUSES[choice]) ? choice : undefined }, base));
+    }
     renderSession();
   }
 
@@ -616,9 +798,13 @@ if (typeof document !== "undefined") {
 
   function renderFocusPicker() {
     const sel = document.getElementById("focusSelect");
-    sel.innerHTML = `<option value="">Auto (freshest)</option>` +
+    const program = Object.keys(PROGRAM_DAYS).map((d) => `<option value="${d}">${d}</option>`).join("");
+    const freestyle = `<option value="">Auto (freshest)</option>` +
       Object.keys(FOCUSES).map((f) => `<option value="${f}">${f}</option>`).join("");
-    // Restore the last chosen category so it sticks across reloads.
+    sel.innerHTML =
+      `<optgroup label="Program (prescriptive split)">${program}</optgroup>` +
+      `<optgroup label="Freestyle (CrossFit-style)">${freestyle}</optgroup>`;
+    // Restore the last chosen workout so it sticks across reloads.
     sel.value = (STATE.settings && STATE.settings.lastFocus) || "";
     sel.onchange = () => {
       STATE.settings = STATE.settings || {};
@@ -634,9 +820,9 @@ if (typeof document !== "undefined") {
     const pathStr = CURRENT.zonePath.map((z) => `${z}·${DATA.gym.zones[z].name}`).join("  →  ");
     let html = `<div class="sesshead"><h2>${CURRENT.focus}</h2><div class="path">Path: ${pathStr}</div></div>`;
     CURRENT.blocks.forEach((bk, bi) => {
-      const zoneTag = bk.zone ? `<span class="zone">Zone ${bk.zone} — ${bk.zoneName}</span>` : "";
-      html += `<div class="block"><div class="bhead"><h3>${bk.name}</h3><span class="time">${bk.time}</span></div>`;
-      html += `<div class="bstruct">${bk.structure} ${zoneTag}</div>`;
+      const zoneTag = bk.zone ? `<span class="zone">Zone ${bk.zone} — ${bk.zoneName}</span>` : `<span class="zone">moves span zones</span>`;
+      html += `<div class="block"><div class="bhead"><h3>${bk.name}</h3><span class="time">${bk.time || ""}</span></div>`;
+      html += `<div class="bstruct">${bk.structure || ""} ${zoneTag}</div>`;
       bk.items.forEach((it, ii) => {
         html += `<div class="move" data-bi="${bi}" data-ii="${ii}">`;
         html += `<div class="mname">${it.movement.name} <span class="muscles">${(it.movement.muscles || []).join(" · ")}</span></div>`;
@@ -658,14 +844,14 @@ if (typeof document !== "undefined") {
 
   function swapMove(bi, ii) {
     const item = CURRENT.blocks[bi].items[ii];
-    const role = blockRole(CURRENT.blocks[bi].name);
-    const cands = swapCandidates(DATA, item.movement, role === "warmup" ? "warmup" : (role === "metcon" ? "metcon" : "strength2"), {
+    const role = CURRENT.blocks[bi].role || blockRole(CURRENT.blocks[bi].name);
+    const cands = swapCandidates(DATA, item.movement, {
       today: todayStr(), history: STATE.history, avoidList: STATE.avoidList,
     }).filter((m) => !sessionMovementIds().includes(m.id));
     if (!cands.length) { alert("No same-region alternative available."); return; }
     const next = cands[0];
-    const slot = role === "warmup" ? "warmup" : (role === "metcon" ? "metcon" : (role === "strength1" ? "strength1" : "strength2"));
-    const reps = role === "strength1" ? 3 : (next.pattern === "core" ? 12 : 8);
+    const slot = slotForRole(role);
+    const reps = slot === "strength1" ? 3 : (next.pattern === "core" ? 12 : 10);
     CURRENT.blocks[bi].items[ii] = {
       movement: next,
       // Keep the main-lift scheme on S1 swaps; otherwise recompute (handles time/distance moves).
