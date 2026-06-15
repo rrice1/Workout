@@ -281,6 +281,10 @@ phist[0].date = today;
 const wv = G.weeklySets(phist, today);
 ok("push day logs chest volume but no back volume", wv.sets.chest > 0 && wv.sets.back === 0, JSON.stringify(wv.sets));
 ok("history items carry a set count", phist[0].items.some(it => it.sets > 0));
+// Bucket de-dup: an RDL (hamstrings+glutes -> ham/glutes) at 3 sets counts as 3, not 6.
+const rdlHist = [{ date: today, focus: "x", items: [{ movementId: "rdl-bb", pattern: "hinge", muscles: ["hamstrings", "glutes", "back"], intensity: "med", role: "strength2", sets: 3 }] }];
+const rv = G.weeklySets(rdlHist, today);
+ok("multi-muscle move counts its bucket once (no double count)", rv.sets["ham/glutes"] === 3, `ham/glutes=${rv.sets["ham/glutes"]}`);
 
 console.log(`\n==== ${pass} passed, ${fail} failed ====`);
 process.exit(fail ? 1 : 0);

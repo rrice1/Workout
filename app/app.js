@@ -580,7 +580,12 @@ function weeklySets(history, today) {
     let hadCardio = false;
     for (const it of s.items || []) {
       const n = it.sets || 0;
-      if (n > 0) for (const mu of it.muscles || []) { const b = MUSCLE_BUCKET[mu]; if (b) sets[b] += n; }
+      if (n > 0) {
+        // De-dupe buckets per movement so a lift tagged e.g. ["hamstrings","glutes"]
+        // (both -> "ham/glutes") counts its sets once, not twice.
+        const buckets = new Set((it.muscles || []).map((mu) => MUSCLE_BUCKET[mu]).filter(Boolean));
+        for (const b of buckets) sets[b] += n;
+      }
       if (it.pattern === "conditioning") hadCardio = true;
     }
     if (hadCardio) cardioExposures++;
