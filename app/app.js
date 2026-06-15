@@ -574,7 +574,7 @@ if (typeof document !== "undefined") {
   }
 
   function wireButtons() {
-    document.getElementById("genBtn").onclick = () => generate();
+    document.getElementById("genBtn").onclick = () => generate(currentFocusChoice());
     document.getElementById("logBtn").onclick = () => logSession();
     document.getElementById("exportBtn").onclick = () => exportData();
     document.getElementById("importInput").onchange = (e) => importData(e);
@@ -609,11 +609,23 @@ if (typeof document !== "undefined") {
       `<p><b>Freshest:</b> ${fresh.join(", ")}</p>`;
   }
 
+  function currentFocusChoice() {
+    const sel = document.getElementById("focusSelect");
+    return sel && sel.value ? sel.value : undefined; // undefined = Auto (freshest)
+  }
+
   function renderFocusPicker() {
     const sel = document.getElementById("focusSelect");
     sel.innerHTML = `<option value="">Auto (freshest)</option>` +
       Object.keys(FOCUSES).map((f) => `<option value="${f}">${f}</option>`).join("");
-    sel.onchange = () => generate(sel.value || undefined);
+    // Restore the last chosen category so it sticks across reloads.
+    sel.value = (STATE.settings && STATE.settings.lastFocus) || "";
+    sel.onchange = () => {
+      STATE.settings = STATE.settings || {};
+      STATE.settings.lastFocus = sel.value;
+      saveState();
+      generate(sel.value || undefined);
+    };
   }
 
   function renderSession() {
