@@ -255,5 +255,32 @@ ok("suggestion shows the last weight reference", /last 50/.test(up.him.last || "
 const enter = G.loadSuggestion(dbBench, 8, {}, set, inv, {});
 ok("no history and no 1RM -> 'enter weight'", enter.him.display === "enter weight", enter.him.display);
 
+console.log("\n== Program sequencer ==");
+ok("6-day sequence has 6 days, 7-day has 7", G.programSequence(6).length === 6 && G.programSequence(7).length === 7);
+ok("day 1 of a fresh program is Push Strength", G.nextProgramDay({ daysPerWeek: 6, logged: 0 }) === "Push Strength");
+ok("after 2 logs, next is Day 3 Pull Strength", G.nextProgramDay({ daysPerWeek: 6, logged: 2 }) === "Pull Strength" && G.dayNumber({ daysPerWeek: 6, logged: 2 }) === 3);
+ok("sequence wraps after a full week", G.dayNumber({ daysPerWeek: 6, logged: 6 }) === 1 && G.nextProgramDay({ daysPerWeek: 6, logged: 6 }) === "Push Strength");
+ok("6-day program never schedules Pump/Recovery", Array.from({length: 18}, (_, i) => G.nextProgramDay({ daysPerWeek: 6, logged: i })).every(d => d !== "Pump / Recovery"));
+ok("7-day program does schedule Pump/Recovery", Array.from({length: 7}, (_, i) => G.nextProgramDay({ daysPerWeek: 7, logged: i })).includes("Pump / Recovery"));
+
+console.log("\n== Mesocycle wave ==");
+ok("week 1 then 2 after one full cycle", G.mesocycleWeek({ daysPerWeek: 6, logged: 0 }) === 1 && G.mesocycleWeek({ daysPerWeek: 6, logged: 6 }) === 2);
+ok("week 4 is the deload (after 3 cycles)", G.mesocycleWeek({ daysPerWeek: 6, logged: 18 }) === 4 && G.MESO[4].deload === true);
+const wk4 = G.buildProgramSession(DATA, { today, history: [], maxes: {}, settings: {}, day: "Push Strength", mesoWeek: 4, seed: 3 });
+ok("deload main lift is light", /deload/i.test(wk4.blocks.find(b => b.role === "strength1").items[0].prescription));
+ok("deload drops the optional finisher", !wk4.blocks.some(b => b.role === "finisher"));
+const wk3 = G.buildProgramSession(DATA, { today, history: [], maxes: {}, settings: {}, day: "Upper Hypertrophy", mesoWeek: 3, seed: 3 });
+const wk1 = G.buildProgramSession(DATA, { today, history: [], maxes: {}, settings: {}, day: "Upper Hypertrophy", mesoWeek: 1, seed: 3 });
+const setsOf = (s) => s.blocks.filter(b => b.role !== "warmup").flatMap(b => b.items).reduce((n, it) => n + G.parseSets(it.prescription), 0);
+ok("push week (3) has >= baseline (1) total sets", setsOf(wk3) >= setsOf(wk1), `wk3 ${setsOf(wk3)} vs wk1 ${setsOf(wk1)}`);
+
+console.log("\n== Weekly volume readout ==");
+ok("parseSets reads leading set count", G.parseSets("4×5 @ RPE 8") === 4 && G.parseSets("3×12–15") === 3 && G.parseSets("x8–10 (light)") === 0);
+const phist = [G.sessionToHistoryEntry(Object.assign(G.buildProgramSession(DATA, { today, history: [], maxes: {}, settings: {}, day: "Push Strength", mesoWeek: 1, seed: 1 }), {}))];
+phist[0].date = today;
+const wv = G.weeklySets(phist, today);
+ok("push day logs chest volume but no back volume", wv.sets.chest > 0 && wv.sets.back === 0, JSON.stringify(wv.sets));
+ok("history items carry a set count", phist[0].items.some(it => it.sets > 0));
+
 console.log(`\n==== ${pass} passed, ${fail} failed ====`);
 process.exit(fail ? 1 : 0);

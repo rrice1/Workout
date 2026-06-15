@@ -46,6 +46,18 @@ main { padding: 8px 12px 40px; max-width: 640px; margin: 0 auto; }
 .controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .controls label { font-size: 13px; color: var(--muted); }
 
+#program h2 { color: var(--accent2); }
+#program .primary { width: 100%; margin-top: 6px; }
+.dpw { font-size: 13px; color: var(--muted); margin-top: 10px; display: flex; align-items: center; gap: 6px; }
+.dpwbtn { padding: 6px 12px; }
+.dpwbtn.on { background: var(--accent); border-color: var(--accent); color: #1a0d07; font-weight: 700; }
+
+.vol { margin-top: 8px; }
+.vollabel { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+.volgrid { display: flex; flex-wrap: wrap; gap: 6px; }
+.volcell { font-size: 12px; color: var(--muted); background: var(--card2); border-radius: 8px; padding: 3px 8px; }
+.volcell b { color: var(--good); }
+
 select, button, .importlabel {
   font-size: 15px;
   border-radius: 10px;

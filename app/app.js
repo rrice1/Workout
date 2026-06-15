@@ -534,6 +534,60 @@ function patternsFor(cfg, which) {
   return [...new Set([...p, ...s])];
 }
 
+// ---- Program sequencing + 4-week mesocycle ----
+
+// Default program "Balanced Hypertrophy + Fitness": 6 required days + optional 7th.
+const PROGRAM_SEQUENCE = [
+  "Push Strength", "Lower Strength — Squat", "Pull Strength",
+  "Conditioning + Core", "Upper Hypertrophy", "Lower Hypertrophy — Hinge",
+  "Pump / Recovery",
+];
+function programSequence(daysPerWeek) { return PROGRAM_SEQUENCE.slice(0, daysPerWeek === 7 ? 7 : 6); }
+function nextProgramDay(prog) { const seq = programSequence(prog.daysPerWeek); return seq[(prog.logged || 0) % seq.length]; }
+function dayNumber(prog) { const seq = programSequence(prog.daysPerWeek); return ((prog.logged || 0) % seq.length) + 1; }
+function mesocycleWeek(prog) { const seq = programSequence(prog.daysPerWeek); return (Math.floor((prog.logged || 0) / seq.length) % 4) + 1; }
+
+// 4-week wave: ramp volume/intensity weeks 1–3, deload week 4.
+const MESO = {
+  1: { name: "Baseline", setDelta: 0, deload: false },
+  2: { name: "Build", setDelta: 0, deload: false },
+  3: { name: "Push", setDelta: 1, deload: false },
+  4: { name: "Deload", setDelta: -1, deload: true },
+};
+
+// ---- Weekly volume accounting (readout) ----
+const VOLUME_TARGETS = { chest: 10, back: 12, quads: 10, "ham/glutes": 10, delts: 10, arms: 10, calves: 8, core: 8 };
+const MUSCLE_BUCKET = {
+  chest: "chest", back: "back", lats: "back", "upper-back": "back",
+  quads: "quads", glutes: "ham/glutes", hamstrings: "ham/glutes",
+  shoulders: "delts", delts: "delts", "rear-delts": "delts", "front-delts": "delts",
+  biceps: "arms", triceps: "arms", forearms: "arms", calves: "calves", core: "core", obliques: "core",
+};
+// Parse the number of working sets from a prescription like "4×5", "3×12–15", "3 × 45–60s".
+function parseSets(p) {
+  if (!p) return 0;
+  const m = String(p).match(/^(\d+)\s*[×x]/);
+  if (m) return parseInt(m[1], 10);
+  if (/build to/i.test(p)) return 1;
+  return 0;
+}
+function weeklySets(history, today) {
+  const sets = {}; Object.keys(VOLUME_TARGETS).forEach((k) => sets[k] = 0);
+  let cardioExposures = 0;
+  for (const s of history) {
+    const ago = daysBetween(s.date, today);
+    if (ago < 0 || ago > 7) continue;
+    let hadCardio = false;
+    for (const it of s.items || []) {
+      const n = it.sets || 0;
+      if (n > 0) for (const mu of it.muscles || []) { const b = MUSCLE_BUCKET[mu]; if (b) sets[b] += n; }
+      if (it.pattern === "conditioning") hadCardio = true;
+    }
+    if (hadCardio) cardioExposures++;
+  }
+  return { sets, cardioExposures, targets: VOLUME_TARGETS };
+}
+
 function buildProgramSession(data, opts) {
   const { movements, gym } = data;
   const today = opts.today;
@@ -545,6 +599,11 @@ function buildProgramSession(data, opts) {
   const rng = makeRng(opts.seed || 1);
   const cfg = PROGRAM_DAYS[opts.day];
   if (!cfg) throw new Error("Unknown program day: " + opts.day);
+
+  const week = opts.mesoWeek || 1;
+  const sd = (MESO[week] || MESO[1]).setDelta;
+  const deload = (MESO[week] || MESO[1]).deload;
+  const S = (base) => Math.max(2, base + sd); // set count adjusted by mesocycle week
 
   const { patternFatigue } = computeFatigue(history, today);
   const bias = balanceBias(history, today);
@@ -649,17 +708,17 @@ function buildProgramSession(data, opts) {
     if (optional && rng() < 0.5) return null;
     switch (t) {
       case "prep": return prep();
-      case "main_strength": { const ms = mainScheme(rng); return single("Strength 1 (main)", "strength1", "heavy", { patterns: patternsFor(cfg, "primary"), roles: ["strength1"], reps: ms.reps, scheme: ms.scheme }); }
-      case "secondary_strength": return single("Strength 2 (secondary)", "strength2", "med", { patterns: patternsFor(cfg, "primarySecondary"), roles: ["strength2"], reps: 8, scheme: "3×8 @ RPE 8" });
-      case "main_hypertrophy": return single("Main (hypertrophy)", "strength1", "med", { patterns: patternsFor(cfg, "primary"), roles: ["strength1", "strength2"], reps: 8, scheme: "4×8 @ RPE 8" });
-      case "secondary_hypertrophy": return single("Secondary (hypertrophy)", "strength2", "med", { patterns: patternsFor(cfg, "primarySecondary"), roles: ["strength2", "accessory"], reps: 11, scheme: "3×10–12" });
-      case "accessory": return single("Accessory", "accessory", "light", { patterns: patternsFor(cfg, "secondary"), roles: ["accessory", "strength2"], reps: 12, scheme: "3×12" });
-      case "accessory_superset": return superset("Accessory superset", "accessory", "light", { patterns: patternsFor(cfg, "secondary"), roles: ["accessory", "strength2"] }, { patterns: patternsFor(cfg, "secondary").concat(["core"]), roles: ["accessory", "strength2", "core"] }, 14, "3×12–15");
-      case "superset_a": return superset("Superset A (push/pull)", "strength2", "med", { patterns: ["h-push", "v-push"], roles: ["strength2", "accessory"] }, { patterns: ["h-pull", "v-pull"], roles: ["strength2", "accessory"] }, 10, "3×10");
-      case "superset_b": return superset("Superset B (push/pull)", "strength2", "med", { patterns: ["v-push", "h-push"], roles: ["strength2", "accessory"] }, { patterns: ["v-pull", "h-pull"], roles: ["strength2", "accessory"] }, 11, "3×10–12");
-      case "arms_delts": return superset("Arms & Delts", "accessory", "light", { patterns: ["biceps", "triceps"], roles: ["accessory"] }, { patterns: ["side-delts", "rear-delts"], roles: ["accessory"] }, 14, "3×12–15");
-      case "pump": return circuit("Pump Circuit", "accessory", "light", { patterns: ["biceps", "triceps", "side-delts", "rear-delts", "calves"], roles: ["accessory"] }, 4, "3×15–20", 15);
-      case "finisher": return finisher();
+      case "main_strength": { const ms = mainScheme(rng, week); return single("Strength 1 (main)", "strength1", deload ? "light" : "heavy", { patterns: patternsFor(cfg, "primary"), roles: ["strength1"], reps: ms.reps, scheme: ms.scheme }); }
+      case "secondary_strength": return single("Strength 2 (secondary)", "strength2", "med", { patterns: patternsFor(cfg, "primarySecondary"), roles: ["strength2"], reps: 8, scheme: `${S(3)}×8 @ RPE ${deload ? 6 : 8}` });
+      case "main_hypertrophy": return single("Main (hypertrophy)", "strength1", "med", { patterns: patternsFor(cfg, "primary"), roles: ["strength1", "strength2"], reps: 8, scheme: `${S(4)}×8 @ RPE ${deload ? 6 : 8}` });
+      case "secondary_hypertrophy": return single("Secondary (hypertrophy)", "strength2", "med", { patterns: patternsFor(cfg, "primarySecondary"), roles: ["strength2", "accessory"], reps: 11, scheme: `${S(3)}×10–12` });
+      case "accessory": return single("Accessory", "accessory", "light", { patterns: patternsFor(cfg, "secondary"), roles: ["accessory", "strength2"], reps: 12, scheme: `${S(3)}×12` });
+      case "accessory_superset": return superset("Accessory superset", "accessory", "light", { patterns: patternsFor(cfg, "secondary"), roles: ["accessory", "strength2"] }, { patterns: patternsFor(cfg, "secondary").concat(["core"]), roles: ["accessory", "strength2", "core"] }, 14, `${S(3)}×12–15`);
+      case "superset_a": return superset("Superset A (push/pull)", "strength2", "med", { patterns: ["h-push", "v-push"], roles: ["strength2", "accessory"] }, { patterns: ["h-pull", "v-pull"], roles: ["strength2", "accessory"] }, 10, `${S(3)}×10`);
+      case "superset_b": return superset("Superset B (push/pull)", "strength2", "med", { patterns: ["v-push", "h-push"], roles: ["strength2", "accessory"] }, { patterns: ["v-pull", "h-pull"], roles: ["strength2", "accessory"] }, 11, `${S(3)}×10–12`);
+      case "arms_delts": return superset("Arms & Delts", "accessory", "light", { patterns: ["biceps", "triceps"], roles: ["accessory"] }, { patterns: ["side-delts", "rear-delts"], roles: ["accessory"] }, 14, `${S(3)}×12–15`);
+      case "pump": return circuit("Pump Circuit", "accessory", "light", { patterns: ["biceps", "triceps", "side-delts", "rear-delts", "calves"], roles: ["accessory"] }, deload ? 2 : 4, `${S(3)}×15–20`, 15);
+      case "finisher": return deload ? null : finisher();
       case "core": return circuit("Core", "core", "light", { patterns: ["core"] }, 2, null, 12);
       case "carry_core": return comboBlock("Carry & Core", { patterns: ["carry"], roles: ["metcon"] }, null, 12);
       case "calves_core": return comboBlock("Calves & Core", { patterns: ["calves"], roles: ["accessory"] }, "3×15–20", 15);
@@ -677,14 +736,14 @@ function buildProgramSession(data, opts) {
   return { date: today, focus: opts.day, mode: "program", category: cfg.category, zonePath: path, blocks, seed: opts.seed || 1 };
 }
 
-function mainScheme(rng) {
-  const opts = [
-    { scheme: "4×5 @ RPE 8", reps: 5 },
-    { scheme: "5×3 @ RPE 8–9", reps: 3 },
-    { scheme: "build to a heavy 3 (~3RM)", reps: 3 },
-    { scheme: "5×5 @ RPE 7–8", reps: 5 },
-  ];
-  return opts[Math.floor(rng() * opts.length)];
+function mainScheme(rng, week) {
+  if (week === 4) return { scheme: "3×5 @ RPE 6 (deload)", reps: 5 };
+  if (week === 3) { // push week — heavier
+    const o = [{ scheme: "5×3 @ RPE 8–9", reps: 3 }, { scheme: "4×4 @ RPE 8–9", reps: 4 }, { scheme: "build to a heavy 3 (~3RM)", reps: 3 }];
+    return o[Math.floor(rng() * o.length)];
+  }
+  const o = [{ scheme: "4×5 @ RPE 7–8", reps: 5 }, { scheme: "5×5 @ RPE 7", reps: 5 }, { scheme: "5×3 @ RPE 8", reps: 3 }];
+  return o[Math.floor(rng() * o.length)];
 }
 
 // Assign each block the zone that ALL its movements share (honest label). If the
@@ -719,7 +778,7 @@ function sessionToHistoryEntry(session) {
     const role = bk.role || blockRole(bk.name);
     const intensity = bk.intensity || ROLE_INTENSITY[role] || "light";
     for (const it of bk.items) {
-      items.push({ movementId: it.movement.id, pattern: it.movement.pattern, muscles: it.movement.muscles || [], intensity, role });
+      items.push({ movementId: it.movement.id, pattern: it.movement.pattern, muscles: it.movement.muscles || [], intensity, role, sets: parseSets(it.prescription) });
     }
   }
   return { date: session.date, focus: session.focus, items };
@@ -768,6 +827,8 @@ if (typeof module !== "undefined" && module.exports) {
     pickFocus, buildSession, buildProgramSession, roundLoad, nearestBarbell, nearestInLadder,
     loadSuggestion, swapCandidates, sessionToHistoryEntry, pctForReps,
     pairZoneDistance, prescribe, computeTargetRegions, FOCUSES, PROGRAM_DAYS,
+    PROGRAM_SEQUENCE, programSequence, nextProgramDay, dayNumber, mesocycleWeek, MESO,
+    weeklySets, parseSets, VOLUME_TARGETS,
   };
 }
 
@@ -785,7 +846,7 @@ if (typeof document !== "undefined") {
       const raw = localStorage.getItem(STORE_KEY);
       if (raw) return JSON.parse(raw);
     } catch (e) {}
-    return { history: [], maxes: {}, progress: {}, settings: { bars: { him: "mens", her: "womens" } }, avoidList: [] };
+    return { history: [], maxes: {}, progress: {}, program: { daysPerWeek: 6, logged: 0 }, settings: { bars: { him: "mens", her: "womens" } }, avoidList: [] };
   }
   function saveState() { localStorage.setItem(STORE_KEY, JSON.stringify(STATE)); }
   function todayStr() { const d = new Date(); return d.toISOString().slice(0, 10); }
@@ -801,6 +862,8 @@ if (typeof document !== "undefined") {
       document.getElementById("app").innerHTML = "<p class='err'>Could not load data files. Serve this folder over http (see README).</p>";
       return;
     }
+    STATE.program = STATE.program || { daysPerWeek: 6, logged: 0 };
+    renderProgram();
     renderWeek();
     renderFocusPicker();
     wireButtons();
@@ -819,7 +882,7 @@ if (typeof document !== "undefined") {
     const seed = (Date.now() & 0xffffffff) ^ Math.floor(Math.random() * 1e9);
     const base = { today: todayStr(), history: STATE.history, maxes: STATE.maxes, progress: STATE.progress || {}, settings: STATE.settings, avoidList: STATE.avoidList, seed };
     if (choice && PROGRAM_DAYS[choice]) {
-      CURRENT = buildProgramSession(DATA, Object.assign({ day: choice }, base));
+      CURRENT = buildProgramSession(DATA, Object.assign({ day: choice, mesoWeek: mesocycleWeek(STATE.program) }, base));
     } else {
       // Freestyle CrossFit-style: a legacy focus name, or undefined for auto.
       CURRENT = buildSession(DATA, Object.assign({ focusOverride: (choice && FOCUSES[choice]) ? choice : undefined }, base));
@@ -827,18 +890,41 @@ if (typeof document !== "undefined") {
     renderSession();
   }
 
+  function renderProgram() {
+    const el = document.getElementById("program");
+    const prog = STATE.program;
+    const day = nextProgramDay(prog);
+    const wk = mesocycleWeek(prog);
+    const seqLen = programSequence(prog.daysPerWeek).length;
+    const meso = MESO[wk];
+    el.innerHTML =
+      `<h2>Your program</h2>` +
+      `<p><b>Next:</b> Week ${wk}/4 · Day ${dayNumber(prog)} of ${seqLen} — <b>${day}</b></p>` +
+      `<p class="path">${meso.name} week${meso.deload ? " — take it easy" : ""}</p>` +
+      `<button id="nextBtn" class="primary">Generate Next Workout</button>` +
+      `<div class="dpw">Training days/week: ` +
+      `<button class="dpwbtn ${prog.daysPerWeek === 6 ? "on" : ""}" data-d="6">6</button>` +
+      `<button class="dpwbtn ${prog.daysPerWeek === 7 ? "on" : ""}" data-d="7">7</button></div>`;
+    document.getElementById("nextBtn").onclick = () => generate(day);
+    el.querySelectorAll(".dpwbtn").forEach((b) => b.onclick = () => {
+      STATE.program.daysPerWeek = +b.dataset.d; saveState(); renderProgram();
+    });
+  }
+
   function renderWeek() {
     const el = document.getElementById("week");
     const { patternFatigue } = computeFatigue(STATE.history, todayStr());
     const recent = STATE.history.filter((s) => daysBetween(s.date, todayStr()) <= 7);
-    const fatigued = Object.entries(patternFatigue).sort((a, b) => b[1] - a[1]).slice(0, 4).map((x) => x[0]);
     const fresh = ["squat", "hinge", "lunge", "h-push", "v-push", "h-pull", "v-pull", "core", "conditioning"]
       .map((p) => [p, freshness(p, patternFatigue)]).sort((a, b) => b[1] - a[1]).slice(0, 4).map((x) => x[0]);
+    const vol = weeklySets(STATE.history, todayStr());
+    const volRows = Object.keys(vol.targets).map((k) =>
+      `<span class="volcell">${k} <b>${vol.sets[k]}</b>/${vol.targets[k]}</span>`).join("");
     el.innerHTML =
       `<h2>This week so far</h2>` +
-      `<p>${recent.length} session(s) in the last 7 days.</p>` +
-      `<p><b>Worked recently:</b> ${fatigued.length ? fatigued.join(", ") : "—"}</p>` +
-      `<p><b>Freshest:</b> ${fresh.join(", ")}</p>`;
+      `<p>${recent.length} session(s) · cardio exposures: ${vol.cardioExposures}/3</p>` +
+      `<p><b>Freshest:</b> ${fresh.join(", ")}</p>` +
+      `<div class="vol"><div class="vollabel">Hard sets per muscle (last 7 days)</div><div class="volgrid">${volRows}</div></div>`;
   }
 
   function currentFocusChoice() {
@@ -998,9 +1084,17 @@ if (typeof document !== "undefined") {
         });
       });
       STATE.history.unshift(sessionToHistoryEntry(CURRENT)); // newest-first, for fatigue
+      // Advance the program sequence only when a PROGRAM day is logged (not freestyle).
+      let advanced = "";
+      if (CURRENT.mode === "program") {
+        STATE.program = STATE.program || { daysPerWeek: 6, logged: 0 };
+        STATE.program.logged = (STATE.program.logged || 0) + 1;
+        advanced = ` Up next: ${nextProgramDay(STATE.program)}.`;
+      }
       saveState();
+      renderProgram();
       renderWeek();
-      el.innerHTML = `<div class="card"><h2>Logged ✓</h2><p>Nice work. Next time these weights will progress based on your RPE.</p></div>`;
+      el.innerHTML = `<div class="card"><h2>Logged ✓</h2><p>Nice work. Next time these weights will progress based on your RPE.${advanced}</p></div>`;
       document.getElementById("logBtn").disabled = true;
     };
   }

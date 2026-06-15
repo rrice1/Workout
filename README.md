@@ -44,7 +44,15 @@ No App Store, no build, no signing, no expiry. To update later, edit the files a
 
 ## Using it
 
-- Pick a **Workout type**, then **Generate**. Two families:
+- **Follow the program (recommended):** the top card shows your next scheduled session —
+  e.g. *Week 2/4 · Day 3 of 6 — Pull Strength* — and **Generate Next Workout** builds it. The
+  sequence advances **only when you log a program session** (skipping a calendar day doesn't
+  skip a workout; freestyle sessions don't advance it). It runs a **4-week wave**: weeks 1–3
+  ramp up, week 4 is an automatic **deload** (lighter loads, fewer sets). Toggle **6 vs 7
+  training days** (the 7th is an easy Pump / Recovery day, never required).
+- The **This week so far** card shows **hard sets per muscle vs target** and cardio exposures,
+  so you can see what's under- or over-trained across the week.
+- Or **pick manually** from the dropdown — two families:
   - **Program (prescriptive split):** Push Strength, Lower Strength — Squat, Pull Strength,
     Conditioning + Core, Upper Hypertrophy, Lower Hypertrophy — Hinge, Pump / Recovery. Each day
     has a clear identity, its own block structure, forbidden patterns (e.g. no legs on push day),
