@@ -404,5 +404,50 @@ ok("session count", lrS.sessions === 2);
 const tS = G.summarizeMovementLogs([{ trackingType: "time", seconds: 50, date: "2026-06-10" }, { trackingType: "time", seconds: 60, date: "2026-06-03" }]);
 ok("best hold = longest seconds", tS.best.seconds === 60);
 
+console.log("\n== Movement library cleanup ==");
+// Program mode never surfaces non-default (CrossFit/Olympic/specialty) movements across all days/seeds.
+const NON_DEFAULT = new Set(movements.filter(m => m.programDefault === false).map(m => m.id));
+ok("excluded set is non-empty", NON_DEFAULT.size >= 15);
+ok("bench/box dip + parallel dips are program-eligible", !NON_DEFAULT.has("bench-box-dip") && !NON_DEFAULT.has("tricep-dips"));
+let leaked = null;
+for (const day of Object.keys(G.PROGRAM_DAYS)) {
+  for (let seed = 1; seed <= 40 && !leaked; seed++) {
+    const s = G.buildProgramSession(DATA, { today, history: [], maxes: {}, settings: {}, day, seed, macroBlock: "hypertrophy_base", mesoWeek: 1 });
+    for (const m of allMoves(s)) if (NON_DEFAULT.has(m.id)) { leaked = `${day}/${seed}: ${m.id}`; break; }
+  }
+}
+ok("no non-default movement leaks into any program day", leaked === null, leaked);
+// Freestyle keeps the full pool — a non-default movement is still eligible there.
+let freestyleHasNonDefault = false;
+for (let seed = 1; seed <= 60 && !freestyleHasNonDefault; seed++) {
+  const s = G.buildSession(DATA, { today, history: [], maxes: {}, settings: {}, seed });
+  if (allMoves(s).some(m => NON_DEFAULT.has(m.id))) freestyleHasNonDefault = true;
+}
+ok("freestyle can still use non-default movements", freestyleHasNonDefault);
+// Specific leaks the user reported are gone from Push Strength.
+let pushHadBadPress = false;
+for (let seed = 1; seed <= 40; seed++) {
+  const s = G.buildProgramSession(DATA, { today, history: [], maxes: {}, settings: {}, day: "Push Strength", seed, macroBlock: "hypertrophy_base", mesoWeek: 1 });
+  if (allMoves(s).some(m => ["kb-push-press", "push-press-bb", "db-push-press"].includes(m.id))) pushHadBadPress = true;
+}
+ok("Push Strength never picks push-press / jerk variants", !pushHadBadPress);
+ok("floor press removed from library entirely", !movements.some(m => m.id === "floor-press-bb"));
+
+console.log("\n== Accessory supersets avoid duplicate-pattern pairs ==");
+let dupTriceps = false;
+for (let seed = 1; seed <= 60; seed++) {
+  const s = G.buildProgramSession(DATA, { today, history: [], maxes: {}, settings: {}, day: "Push Strength", seed, macroBlock: "hypertrophy_base", mesoWeek: 1 });
+  const sup = s.blocks.find(b => /superset/i.test(b.name));
+  if (sup && sup.items.length === 2 && sup.items[0].movement.pattern === sup.items[1].movement.pattern) dupTriceps = true;
+}
+ok("Push accessory superset never pairs same pattern (no triceps+triceps)", !dupTriceps);
+
+console.log("\n== Warm-up wording is type-aware (no '(light)' on bodyweight) ==");
+ok("mobility warmup -> controlled reps", G.prescribe({ pattern: "mobility", loadable: false }, "warmup", () => 0.5) === "8–10 controlled reps");
+ok("bodyweight warmup -> easy reps", G.prescribe({ pattern: "h-push", loadable: false }, "warmup", () => 0.5) === "8–10 easy reps");
+ok("unilateral mobility warmup adds /side", G.prescribe({ pattern: "mobility", loadable: false, unilateral: true }, "warmup", () => 0.5) === "8–10 controlled reps/side");
+ok("loaded warmup ramp -> light reps", G.prescribe({ pattern: "squat", loadable: true }, "warmup", () => 0.5) === "8–10 light reps");
+ok("no warmup prescription says '(light)'", !/\(light\)/.test(G.prescribe({ pattern: "mobility", loadable: false }, "warmup", () => 0.5)));
+
 console.log(`\n==== ${pass} passed, ${fail} failed ====`);
 process.exit(fail ? 1 : 0);

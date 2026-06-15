@@ -109,3 +109,10 @@ Everything gym-specific is in `app/gym.json`:
 Movement tags (pattern, equipment, which zone, day/space limits) live in `app/movements.json`.
 For example, a space-heavy move can be capped to certain days and a max frequency via
 `preferredDays` and `frequencyCapPerWeeks`.
+
+**Program vs. Freestyle movement pools.** The prescriptive **Program** mode draws only from
+conventional, repeatable gym movements. CrossFit/Olympic/specialty/skill moves (cleans, snatches,
+thrusters, devil press, push-press/jerk variants, floor press, muscle-ups, box jumps, etc.) are
+tagged `"programDefault": false`, which keeps them out of generated program sessions and program
+swaps — but they're still available in **Freestyle** mode and as manual swaps there. To pull a
+movement back into the program, delete its `programDefault` flag (or set it to `true`).

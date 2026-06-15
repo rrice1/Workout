@@ -47,7 +47,11 @@ function prescribe(m, slot, rng) {
     if (slot === "strength2") return "3 × 20–30 m";
     return "30–40 m";
   }
-  if (slot === "warmup") return "x8–10 (light)";
+  if (slot === "warmup") {
+    const side = m.unilateral ? "/side" : "";
+    if (!m.loadable) return (m.pattern === "mobility" ? "8–10 controlled reps" : "8–10 easy reps") + side;
+    return "8–10 light reps" + side; // a loaded ramp set actually warrants "light"
+  }
   if (slot === "strength2") return m.pattern === "core" ? "3×12–15" : "3×10 @ RPE 8";
   return "x" + [8, 10, 12, 15][Math.floor(r() * 4)];
 }
@@ -765,8 +769,11 @@ function buildProgramSession(data, opts) {
   const { patternFatigue } = computeFatigue(history, today);
   const bias = balanceBias(history, today);
   const forbidden = new Set(cfg.forbidden || []);
+  // Program mode draws only from conventional, repeatable movements (programDefault). The
+  // CrossFit/Olympic/specialty moves stay available in Freestyle mode and as manual swaps.
   const pool = filterCandidates(movements, { today, history, avoidList: opts.avoidList || [] })
-    .filter((m) => !forbidden.has(m.pattern));
+    .filter((m) => !forbidden.has(m.pattern))
+    .filter((m) => m.programDefault !== false);
   const targetRegions = new Set([].concat(cfg.primary || [], cfg.secondary || []).map((p) => PATTERN_REGION[p]).filter(Boolean));
 
   const usedIds = new Set();
@@ -824,9 +831,12 @@ function buildProgramSession(data, opts) {
         pairs.push({ a, b, s });
       }
     }
+    // Prefer pairs that train different patterns (e.g. triceps + side-delts, not triceps + triceps).
+    const mixed = pairs.filter((p) => p.a.pattern !== p.b.pattern);
+    const usePairs = mixed.length ? mixed : pairs;
     let items = [];
-    if (pairs.length) {
-      const p = pickWeighted(pairs, (x) => x.s, rng);
+    if (usePairs.length) {
+      const p = pickWeighted(usePairs, (x) => x.s, rng);
       const ia = item(p.a, reps, scheme); ia.slotKey = sk0;
       const ib = item(p.b, reps, scheme); ib.slotKey = sk1;
       items = [ia, ib]; note(p.a); note(p.b);
@@ -1185,9 +1195,11 @@ if (typeof document !== "undefined") {
   function swapMove(bi, ii) {
     const item = CURRENT.blocks[bi].items[ii];
     const role = CURRENT.blocks[bi].role || blockRole(CURRENT.blocks[bi].name);
-    const cands = swapCandidates(DATA, item.movement, {
+    let cands = swapCandidates(DATA, item.movement, {
       today: todayStr(), history: STATE.history, avoidList: STATE.avoidList,
     }).filter((m) => !sessionMovementIds().includes(m.id));
+    // In program mode, keep swaps within the conventional pool too.
+    if (CURRENT.mode === "program") cands = cands.filter((m) => m.programDefault !== false);
     if (!cands.length) { alert("No same-region alternative available."); return; }
     const next = cands[0];
     const slot = slotForRole(role);
