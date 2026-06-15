@@ -311,10 +311,30 @@ for (const blk of G.BLOCK_KEYS) {
   const pump = G.buildProgramSession(DATA, { today, history: [], maxes: {}, settings: {}, day: "Pump / Recovery", macroBlock: blk, mesoWeek: 3, seed: 5 });
   ok(`Pump stays easy in ${blk}`, pump.blocks.every(b => b.intensity !== "heavy" && b.intensity !== "med") || pump.blocks.filter(b=>b.role==="accessory").every(b=>/15–20/.test(b.items[0].prescription)), JSON.stringify(pump.blocks.map(b=>b.role)));
 }
-// Deload week (4) marks schemes and skips finisher.
-const dl = G.buildProgramSession(DATA, { today, history: [], maxes: {}, settings: {}, day: "Push Strength", macroBlock: "strength_biased", mesoWeek: 4, seed: 5 });
+// Deload week (4) marks schemes and skips finisher. Use Block 1 here — Block 2 week 4 is the
+// special test week (covered below), where the main lift is a 3RM test, not a labeled deload.
+const dl = G.buildProgramSession(DATA, { today, history: [], maxes: {}, settings: {}, day: "Push Strength", macroBlock: "hypertrophy_base", mesoWeek: 4, seed: 5 });
 ok("deload schemes are labeled", /deload/i.test(dl.blocks.find(b => b.role === "strength1").items[0].prescription));
 ok("deload skips finisher", !dl.blocks.some(b => b.role === "finisher"));
+
+console.log("\n== Heavy-rep test week (Block 2, week 8) ==");
+ok("isTestWeek only for strength_biased week 4", G.isTestWeek("strength_biased", 4) && !G.isTestWeek("strength_biased", 3) && !G.isTestWeek("hypertrophy_base", 4) && !G.isTestWeek("fitness_performance", 4));
+// estimate1RM ≈ 3RM × 1.10 (doc example: 185×3 -> ~204).
+ok("estimate1RM(185) ~ 204", G.estimate1RM(185) === 204, G.estimate1RM(185));
+// Week 7 (strength_biased week 3) is the heavy-triple exposure week already (5×3 @ RPE 8-9).
+ok("week 7 main = heavy triples (5×3 @ RPE 8-9)", /5×3 @ RPE 8-9/.test(mainReps("strength_biased", 3)), mainReps("strength_biased", 3));
+// Week 8: strength-day main becomes an optional 3RM test, flagged for the 1RM update.
+const tw = G.buildProgramSession(DATA, { today, history: [], maxes: {}, settings: {}, day: "Push Strength", macroBlock: "strength_biased", mesoWeek: 4, seed: 5 });
+const twMain = tw.blocks.find(b => b.role === "strength1").items[0];
+ok("test-week main prescribes a 3RM", /3RM/.test(twMain.prescription), twMain.prescription);
+ok("test-week main is flagged test=true", twMain.test === true);
+ok("test-week safety phrasing present", /stop if form breaks/i.test(twMain.prescription));
+ok("test-week still skips finisher (deload)", !tw.blocks.some(b => b.role === "finisher"));
+// A hypertrophy day in the same week is NOT turned into a test.
+const twHyp = G.buildProgramSession(DATA, { today, history: [], maxes: {}, settings: {}, day: "Upper Hypertrophy", macroBlock: "strength_biased", mesoWeek: 4, seed: 5 });
+ok("hypertrophy day has no 3RM test in test week", !twHyp.blocks.flatMap(b => b.items).some(i => i.test));
+// The test top set counts as one working set in the volume readout.
+ok("3RM prescription parses to 1 working set", G.parseSets(G.TEST_MAIN_SCHEME) === 1, G.parseSets(G.TEST_MAIN_SCHEME));
 
 console.log("\n== Slot-level stickiness ==");
 // Main strength + accessory items carry a slotKey like "Push Strength::strength1::0".
@@ -330,6 +350,59 @@ ok("avoided sticky movement is not used", avoidedStick.blocks.find(b => b.role =
 // Slot keys are stable across regenerations of the same day.
 const ps2 = G.buildProgramSession(DATA, { today, history: [], maxes: {}, settings: {}, day: "Push Strength", seed: 9 });
 ok("slot keys are stable for a day regardless of seed", ps2.blocks.find(b => b.role === "strength1").items[0].slotKey === mainItem.slotKey);
+
+console.log("\n== Tracking types & per-set logging ==");
+ok("loadable -> load_reps", G.trackingType({ loadable: true }) === "load_reps");
+ok("unit time -> time", G.trackingType({ unit: "time" }) === "time");
+ok("carry -> distance", G.trackingType({ pattern: "carry" }) === "distance");
+ok("cardio -> cardio", G.trackingType({ cardio: true }) === "cardio");
+ok("bodyweight -> reps", G.trackingType({}) === "reps");
+// parse hold targets from prescriptions
+ok("parse '3 × 45–60s' -> 60", G.parseTargetSeconds("3 × 45–60s") === 60, G.parseTargetSeconds("3 × 45–60s"));
+ok("parse ':30–:45 hold' -> 45", G.parseTargetSeconds(":30–:45 hold") === 45, G.parseTargetSeconds(":30–:45 hold"));
+ok("parse '30s hold' -> 30", G.parseTargetSeconds("30s hold") === 30, G.parseTargetSeconds("30s hold"));
+ok("parse '4×8 @ RPE 8' -> null (no seconds)", G.parseTargetSeconds("4×8 @ RPE 8") === null, G.parseTargetSeconds("4×8 @ RPE 8"));
+// repeatable working weight from a top-set/backoff
+ok("repeatable [135,115,115] -> 115", G.repeatableLoad([{ load: 135 }, { load: 115 }, { load: 115 }]) === 115);
+ok("repeatable single -> itself", G.repeatableLoad([{ load: 135 }]) === 135);
+ok("repeatable tie -> lower", G.repeatableLoad([{ load: 100 }, { load: 105 }]) === 100);
+// summarizePerf: top-set/backoff keeps top but suggests the repeatable weight
+const sp = G.summarizePerf({ trackingType: "load_reps", status: "done", rpe: 8, anyEntered: true, sets: [{ load: 135, reps: 20 }, { load: 115, reps: 20 }, { load: 115, reps: 20 }] });
+ok("summarize top = 135", sp.top === 135, JSON.stringify(sp));
+ok("summarize repeatable load = 115", sp.load === 115, JSON.stringify(sp));
+ok("summarize source measured when entered", sp.source === "measured");
+const spA = G.summarizePerf({ trackingType: "load_reps", status: "done", anyEntered: false, sets: [{ load: 100 }] });
+ok("summarize source assumed when blank", spA.source === "assumed");
+const spT = G.summarizePerf({ trackingType: "time", status: "partial", seconds: 45, targetSeconds: 60, anyEntered: true });
+ok("summarize time keeps seconds/target", spT.seconds === 45 && spT.targetSeconds === 60 && spT.completed === true);
+const spS = G.summarizePerf({ trackingType: "load_reps", status: "skipped", anyEntered: true, sets: [] });
+ok("summarize skipped -> completed false", spS.completed === false && spS.status === "skipped");
+
+console.log("\n== Progression respects status & source ==");
+ok("skipped -> no change", G.progressDir({ status: "skipped" }) === 0);
+ok("partial -> back off", G.progressDir({ status: "partial" }) === -1);
+ok("assumed done holds even at low RPE", G.progressDir({ status: "done", source: "assumed", rpe: 6 }) === 0);
+ok("measured RPE7 -> up", G.progressDir({ status: "done", source: "measured", rpe: 7 }) === 1);
+ok("measured RPE10 -> down", G.progressDir({ status: "done", source: "measured", rpe: 10 }) === -1);
+ok("measured blank RPE -> hold", G.progressDir({ status: "done", source: "measured", rpe: null }) === 0);
+// backward compatibility with old {completed, rpe} records
+ok("legacy completed+RPE7 -> up", G.progressDir({ completed: true, rpe: 7 }) === 1);
+ok("legacy missed -> down", G.progressDir({ completed: false }) === -1);
+
+console.log("\n== Timed-hold suggestion ==");
+const plank = { id: "plank" };
+ok("no history -> target", G.holdSuggestion(plank, 60, {}).him.seconds === 60);
+ok("missed hold backs off to held time", G.holdSuggestion(plank, 60, { plank: { him: { seconds: 45, targetSeconds: 60, status: "partial" } } }).him.seconds === 45);
+ok("hit target -> small bump", G.holdSuggestion(plank, 60, { plank: { him: { seconds: 60, targetSeconds: 60, status: "done" } } }).him.seconds === 65);
+
+console.log("\n== Movement log summary (progress screen) ==");
+const lrEntries = [{ trackingType: "load_reps", top: 135, load: 115, date: "2026-06-10" }, { trackingType: "load_reps", top: 130, load: 130, date: "2026-06-03" }];
+const lrS = G.summarizeMovementLogs(lrEntries);
+ok("last = newest entry", lrS.last.date === "2026-06-10");
+ok("best = heaviest top across entries", lrS.best.load === 135, JSON.stringify(lrS.best));
+ok("session count", lrS.sessions === 2);
+const tS = G.summarizeMovementLogs([{ trackingType: "time", seconds: 50, date: "2026-06-10" }, { trackingType: "time", seconds: 60, date: "2026-06-03" }]);
+ok("best hold = longest seconds", tS.best.seconds === 60);
 
 console.log(`\n==== ${pass} passed, ${fail} failed ====`);
 process.exit(fail ? 1 : 0);

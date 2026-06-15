@@ -308,13 +308,18 @@ function nextAchievable(current, dir, implement, inv, barKg) {
   return current;
 }
 
-// RPE/result → progression direction. <=7 (or easy) go up; 8–9 hold; 10 or missed go down.
+// RPE/result → progression direction, accounting for how the set was logged:
+//   skipped → no change · partial/missed → back off · assumed (fast-logged) → hold ·
+//   measured → RPE rules (≤7 up, 8–9 hold, ≥10 down; blank RPE holds). See Discussion.md.
 function progressDir(p) {
   if (!p) return 0;
-  if (p.completed === false) return -1;
+  if (p.status === "skipped") return 0;
+  if (p.status === "partial") return -1;
+  if (p.completed === false) return -1;            // legacy / explicit miss
+  if (p.source === "assumed") return 0;            // fast-logged: stay conservative
   if (p.rpe != null && p.rpe <= 7) return 1;
   if (p.rpe != null && p.rpe >= 10) return -1;
-  return 0;
+  return 0;                                        // measured @ RPE 8–9, or RPE left blank
 }
 
 // His/hers load suggestion. Prefers your logged working weight (with progression from last
@@ -341,6 +346,104 @@ function loadSuggestion(movement, reps, maxes, settings, inv, progress) {
     }
   }
   return out;
+}
+
+// ----------------------------------------------------------------------------
+// Per-set logging model (see Discussion.md)
+// ----------------------------------------------------------------------------
+
+// How a movement is logged + progressed. Drives which fields the log form shows.
+function trackingType(m) {
+  if (!m) return "reps";
+  if (m.loadable) return "load_reps";
+  if (m.unit === "time") return "time";
+  if (m.pattern === "carry" || m.unit === "distance") return "distance";
+  if (m.cardio) return "cardio";
+  return "reps"; // bodyweight reps
+}
+
+// Pull a target hold length (seconds) out of a prescription like "3 × 45–60s",
+// ":30–:45 hold", "30s hold". Returns the top of the range, or null if none found.
+function parseTargetSeconds(presc) {
+  if (!presc) return null;
+  const nums = [];
+  const re = /:(\d{1,3})|(\d{1,3})\s*s\b|(\d{1,3})\s*sec/gi;
+  let mm;
+  while ((mm = re.exec(presc))) { const v = mm[1] || mm[2] || mm[3]; if (v) nums.push(parseInt(v, 10)); }
+  return nums.length ? Math.max(...nums) : null;
+}
+
+// The weight you can repeat across all working sets: the most common load (ties → the lower).
+// For a top-set/backoff like [135,115,115] this is 115, not the 135 top set.
+function repeatableLoad(sets) {
+  const counts = new Map();
+  for (const s of sets) counts.set(s.load, (counts.get(s.load) || 0) + 1);
+  let best = null, bestN = 0;
+  for (const [load, n] of counts) {
+    if (n > bestN || (n === bestN && (best === null || load < best))) { best = load; bestN = n; }
+  }
+  return best;
+}
+
+// Turn a raw per-person log input into the canonical progress record. Pure + testable.
+// raw: { trackingType, status, rpe, anyEntered, sets:[{load,reps,completed}], seconds, targetSeconds, reps, date }
+// source = "measured" if the user entered actual data, else "assumed" (fast-logged).
+function summarizePerf(raw) {
+  const tt = raw.trackingType || "load_reps";
+  const status = raw.status || "done";
+  const source = raw.source || (raw.anyEntered ? "measured" : "assumed");
+  const out = { status, source, rpe: raw.rpe != null ? raw.rpe : null, completed: status !== "skipped", trackingType: tt };
+  if (raw.date) out.date = raw.date;
+  if (tt === "load_reps") {
+    const sets = (raw.sets || []).filter((s) => s && s.load > 0);
+    if (sets.length) {
+      out.sets = sets.map((s) => ({ load: s.load, reps: s.reps != null ? s.reps : null, completed: s.completed !== false }));
+      out.top = Math.max(...sets.map((s) => s.load));
+      out.load = repeatableLoad(sets); // weight you can repeat across sets (drives suggestions)
+    }
+  } else if (tt === "time") {
+    if (raw.seconds != null) out.seconds = raw.seconds;
+    if (raw.targetSeconds != null) out.targetSeconds = raw.targetSeconds;
+  } else if (raw.reps != null) {
+    out.reps = raw.reps;
+  }
+  return out;
+}
+
+// Suggested hold length per person from last performance: hit the target → small bump (~+5s);
+// missed it (partial, or held less than target) → suggest what you actually held (floored to 5s).
+function holdSuggestion(movement, targetSeconds, progress) {
+  if (!targetSeconds) return null;
+  const out = {};
+  for (const who of ["him", "her"]) {
+    const p = progress && progress[movement.id] && progress[movement.id][who];
+    let secs = targetSeconds, last = null;
+    if (p && p.seconds != null) {
+      last = `last ${p.seconds}s`;
+      const tgt = p.targetSeconds || targetSeconds;
+      secs = (p.status === "partial" || p.seconds < tgt) ? Math.max(15, Math.floor(p.seconds / 5) * 5) : p.seconds + 5;
+    } else if (p && p.status === "partial") {
+      secs = Math.max(15, targetSeconds - 10);
+    }
+    out[who] = { seconds: secs, display: `${secs}s`, last };
+  }
+  return out;
+}
+
+// Aggregate a movement+person's newest-first log entries into last / best / session count.
+function summarizeMovementLogs(entries) {
+  if (!entries || !entries.length) return null;
+  const last = entries[0];
+  let best = null;
+  for (const e of entries) {
+    if (e.trackingType === "time") {
+      if (e.seconds != null && (!best || e.seconds > (best.seconds || 0))) best = { seconds: e.seconds, date: e.date };
+    } else {
+      const w = e.top != null ? e.top : e.load;
+      if (w != null && (!best || w > (best.load || 0))) best = { load: w, date: e.date };
+    }
+  }
+  return { last, best, sessions: entries.length };
 }
 
 // ----------------------------------------------------------------------------
@@ -595,6 +698,14 @@ function slotScheme(tier, blockKey, week) {
   return { scheme: `${w.sets}×${w.reps} @ RPE ${w.rpe}${week === 4 ? " (deload)" : ""}`, reps: firstRep(w.reps) };
 }
 
+// Block 2 (Strength-Biased) closes with a test + deload week instead of a plain deload:
+// an OPTIONAL clean 3RM on the strength-day main lift. Week 7 (strength_biased week 3) is
+// already the heavy-triple exposure week (5×3 @ RPE 8-9). See HighWeightReps.md.
+function isTestWeek(blockKey, week) { return blockKey === "strength_biased" && week === 4; }
+const TEST_MAIN_SCHEME = "Optional test: work up to a clean 3RM @ RPE 9, then 2×8 @ ~70% backoff. A clean heavy triple, not a true max — stop if form breaks.";
+// Estimate 1RM from a heavy triple (≈ 3RM × 1.10), per the test protocol.
+function estimate1RM(weight, mult) { return Math.round(weight * (mult || 1.10)); }
+
 // ---- Weekly volume accounting (readout) ----
 const VOLUME_TARGETS = { chest: 10, back: 12, quads: 10, "ham/glutes": 10, delts: 10, arms: 10, calves: 8, core: 8 };
 const MUSCLE_BUCKET = {
@@ -608,7 +719,7 @@ function parseSets(p) {
   if (!p) return 0;
   const m = String(p).match(/^(\d+)\s*[×x]/);
   if (m) return parseInt(m[1], 10);
-  if (/build to/i.test(p)) return 1;
+  if (/build to|work up to|3rm/i.test(p)) return 1; // top set of a build-up / 3RM test
   return 0;
 }
 function weeklySets(history, today) {
@@ -776,7 +887,15 @@ function buildProgramSession(data, opts) {
     if (optional && rng() < 0.5) return null;
     switch (t) {
       case "prep": return prep();
-      case "main_strength": { const sc = slotScheme("main", block, week); return single("Strength 1 (main)", "strength1", deload ? "light" : "heavy", { patterns: patternsFor(cfg, "primary"), roles: ["strength1"], reps: sc.reps, scheme: sc.scheme }); }
+      case "main_strength": {
+        if (isTestWeek(block, week)) {
+          const b = single("Strength 1 — 3RM test (optional)", "strength1", "heavy", { patterns: patternsFor(cfg, "primary"), roles: ["strength1"], reps: 3, scheme: TEST_MAIN_SCHEME });
+          if (b) b.items.forEach((it) => { it.test = true; it.testReps = 3; });
+          return b;
+        }
+        const sc = slotScheme("main", block, week);
+        return single("Strength 1 (main)", "strength1", deload ? "light" : "heavy", { patterns: patternsFor(cfg, "primary"), roles: ["strength1"], reps: sc.reps, scheme: sc.scheme });
+      }
       case "secondary_strength": { const sc = slotScheme("secondary", block, week); return single("Strength 2 (secondary)", "strength2", "med", { patterns: patternsFor(cfg, "primarySecondary"), roles: ["strength2"], reps: sc.reps, scheme: sc.scheme }); }
       case "main_hypertrophy": { const sc = slotScheme("hyper", block, week); return single("Main (hypertrophy)", "strength1", "med", { patterns: patternsFor(cfg, "primary"), roles: ["strength1", "strength2"], reps: sc.reps, scheme: sc.scheme }); }
       case "secondary_hypertrophy": { const sc = slotScheme("accessory", block, week); return single("Secondary (hypertrophy)", "strength2", "med", { patterns: patternsFor(cfg, "primarySecondary"), roles: ["strength2", "accessory"], reps: sc.reps, scheme: sc.scheme }); }
@@ -884,10 +1003,12 @@ if (typeof module !== "undefined" && module.exports) {
   module.exports = {
     computeFatigue, freshness, balanceBias, filterCandidates, lastUsed,
     pickFocus, buildSession, buildProgramSession, roundLoad, nearestBarbell, nearestInLadder,
-    loadSuggestion, swapCandidates, sessionToHistoryEntry, pctForReps,
+    loadSuggestion, swapCandidates, sessionToHistoryEntry, pctForReps, progressDir,
+    trackingType, parseTargetSeconds, repeatableLoad, summarizePerf, holdSuggestion, summarizeMovementLogs,
     pairZoneDistance, prescribe, computeTargetRegions, FOCUSES, PROGRAM_DAYS,
     PROGRAM_SEQUENCE, programSequence, nextProgramDay, dayNumber, mesocycleWeek, MESO,
     macrocycleWeek, macroBlockIndex, macroBlockKey, BLOCK_KEYS, BLOCK_NAMES, MACRO_BLOCKS, slotScheme,
+    isTestWeek, estimate1RM, TEST_MAIN_SCHEME,
     weeklySets, parseSets, VOLUME_TARGETS,
   };
 }
@@ -906,7 +1027,7 @@ if (typeof document !== "undefined") {
       const raw = localStorage.getItem(STORE_KEY);
       if (raw) return JSON.parse(raw);
     } catch (e) {}
-    return { history: [], maxes: {}, progress: {}, slots: {}, program: { daysPerWeek: 6, logged: 0 }, settings: { bars: { him: "mens", her: "womens" } }, avoidList: [] };
+    return { history: [], maxes: {}, progress: {}, slots: {}, logs: [], program: { daysPerWeek: 6, logged: 0 }, settings: { bars: { him: "mens", her: "womens" } }, avoidList: [] };
   }
   function saveState() { localStorage.setItem(STORE_KEY, JSON.stringify(STATE)); }
   function todayStr() { const d = new Date(); return d.toISOString().slice(0, 10); }
@@ -924,6 +1045,7 @@ if (typeof document !== "undefined") {
     }
     STATE.program = STATE.program || { daysPerWeek: 6, logged: 0 };
     STATE.slots = STATE.slots || {};
+    STATE.logs = STATE.logs || [];
     renderProgram();
     renderWeek();
     renderFocusPicker();
@@ -937,6 +1059,7 @@ if (typeof document !== "undefined") {
     document.getElementById("exportBtn").onclick = () => exportData();
     document.getElementById("importInput").onchange = (e) => importData(e);
     document.getElementById("avoidedBtn").onclick = () => renderAvoided();
+    document.getElementById("progressBtn").onclick = () => renderProgress();
   }
 
   function generate(choice) {
@@ -961,11 +1084,13 @@ if (typeof document !== "undefined") {
     const macroWk = macrocycleWeek(prog);
     const blockIdx = macroBlockIndex(prog);
     const blockName = BLOCK_NAMES[macroBlockKey(prog)];
+    const testWk = isTestWeek(macroBlockKey(prog), wk);
     el.innerHTML =
       `<h2>Your program</h2>` +
       `<p class="path">Balanced Hypertrophy + Fitness · Macro Week ${macroWk}/12</p>` +
       `<p><b>Block ${blockIdx + 1}/3:</b> ${blockName}</p>` +
       `<p>Meso Week ${wk}/4 (${meso.name}${meso.deload ? " — take it easy" : ""}) · Day ${dayNumber(prog)} of ${seqLen}</p>` +
+      (testWk ? `<p class="testnote">🏋 <b>Test week:</b> optional clean <b>3RM</b> on strength-day main lifts (not a true max). Logging it updates your estimated 1RM. Everything else stays deload.</p>` : "") +
       `<p><b>Next:</b> ${day}</p>` +
       `<button id="nextBtn" class="primary">Generate Next Workout</button>` +
       `<div class="dpw">Training days/week: ` +
@@ -1037,6 +1162,13 @@ if (typeof document !== "undefined") {
             `<span class="loadedit" data-bi="${bi}" data-ii="${ii}" data-who="him">You: <b>${it.load.him.display}</b> ${lastH} ✎</span>` +
             `<span class="loadedit" data-bi="${bi}" data-ii="${ii}" data-who="her">Her: <b>${it.load.her.display}</b> ${lastR} ✎</span>` +
             `</div>`;
+        } else if (trackingType(it.movement) === "time") {
+          const hs = holdSuggestion(it.movement, parseTargetSeconds(it.prescription), STATE.progress);
+          if (hs) {
+            const lh = hs.him.last ? `<span class="last">${hs.him.last}</span>` : "";
+            const lr = hs.her.last ? `<span class="last">${hs.her.last}</span>` : "";
+            html += `<div class="loads"><span>You: <b>${hs.him.display}</b> ${lh}</span><span>Her: <b>${hs.her.display}</b> ${lr}</span></div>`;
+          }
         }
         html += `<div class="mactions"><button class="swap" data-bi="${bi}" data-ii="${ii}">Swap</button><button class="avoid" data-bi="${bi}" data-ii="${ii}">Don't suggest</button></div>`;
         html += `</div>`;
@@ -1095,6 +1227,52 @@ if (typeof document !== "undefined") {
     });
   }
 
+  // Per-person progress dashboard built from the logged history (STATE.logs).
+  let PROGRESS_WHO = "him";
+  function renderProgress() {
+    const el = document.getElementById("session");
+    const logs = (STATE.logs || []).filter((l) => l.who === PROGRESS_WHO);
+    const toggle =
+      `<div class="dpw">Show: ` +
+      `<button class="dpwbtn ${PROGRESS_WHO === "him" ? "on" : ""}" data-w="him">You</button>` +
+      `<button class="dpwbtn ${PROGRESS_WHO === "her" ? "on" : ""}" data-w="her">Her</button></div>`;
+    let body;
+    if (!logs.length) {
+      body = `<p>No logged sets yet for ${PROGRESS_WHO === "him" ? "you" : "her"}. Log a session to start tracking.</p>`;
+    } else {
+      // Group newest-first logs by movement.
+      const byMv = {};
+      logs.forEach((l) => { (byMv[l.movementId] = byMv[l.movementId] || []).push(l); });
+      const cards = Object.keys(byMv).map((id) => {
+        const entries = byMv[id]; // already newest-first
+        const s = summarizeMovementLogs(entries);
+        const mv = DATA.movements.find((x) => x.id === id);
+        const name = (mv && mv.name) || (entries[0] && entries[0].name) || id;
+        const last = s.last;
+        const slot = last.slotKey ? last.slotKey.split("::").slice(0, 2).join(" · ") : "";
+        const e1rm = STATE.maxes[id] && STATE.maxes[id][PROGRESS_WHO];
+        let lastStr;
+        if (last.trackingType === "time") lastStr = last.seconds != null ? `${last.seconds}s` : "done";
+        else if (last.top != null || last.load != null) {
+          const topPart = last.top != null && last.top !== last.load ? `top ${last.top} · ` : "";
+          lastStr = `${topPart}${last.load != null ? last.load + " lb" : "done"}${last.rpe != null ? ` @RPE ${last.rpe}` : ""}`;
+        } else lastStr = last.status;
+        const tags = (last.status !== "done" ? ` <span class="ptag">${last.status}</span>` : "") +
+          (last.source === "assumed" ? ` <span class="ptag assumed">assumed</span>` : "");
+        const bestStr = s.best ? (s.best.seconds != null ? `${s.best.seconds}s` : `${s.best.load} lb`) : "—";
+        return `<div class="pcard"><div class="mname">${name}</div>` +
+          (slot ? `<div class="pslot">${slot}</div>` : "") +
+          `<div class="prow">Last: <b>${lastStr}</b>${tags} <span class="pdim">${last.date}</span></div>` +
+          `<div class="prow">Best: <b>${bestStr}</b>${e1rm ? ` · e1RM <b>${e1rm}</b>` : ""} · ${s.sessions} session${s.sessions > 1 ? "s" : ""}</div>` +
+          `</div>`;
+      }).join("");
+      body = cards;
+    }
+    el.innerHTML = `<div class="card"><h2>Progress</h2>${toggle}${body}<div class="footer"><button id="progBack">Back</button></div></div>`;
+    el.querySelectorAll(".dpwbtn").forEach((b) => b.onclick = () => { PROGRESS_WHO = b.dataset.w; renderProgress(); });
+    document.getElementById("progBack").onclick = () => renderSession();
+  }
+
   // Tap a load to set the weight you'll actually use (snapped to loadable). Stored as your
   // working weight so future sessions remember and progress it.
   function editLoad(bi, ii, who) {
@@ -1110,68 +1288,152 @@ if (typeof document !== "undefined") {
     // Remember as working weight (hold next time until RPE says otherwise).
     STATE.progress = STATE.progress || {};
     STATE.progress[mv.id] = STATE.progress[mv.id] || {};
-    STATE.progress[mv.id][who] = { load: snapped.valueLb, rpe: STATE.progress[mv.id][who] ? STATE.progress[mv.id][who].rpe : null, completed: true };
+    // Setting a weight by hand means "use this next time" — hold here (rpe cleared), not progress.
+    STATE.progress[mv.id][who] = Object.assign({}, STATE.progress[mv.id][who] || {}, { load: snapped.valueLb, rpe: null, completed: true, status: "done", source: "measured" });
     saveState();
     renderSession();
   }
 
-  // Log flow: capture actual weight + RPE + completed for each loadable move, then save —
-  // this drives next session's load suggestions (progression).
+  const RPE_OPTS = `<option value="" selected>RPE —</option>` + [6, 7, 8, 9, 10].map((n) => `<option value="${n}">RPE ${n}</option>`).join("");
+  const STATUS_OPTS = `<option value="done" selected>Done</option><option value="partial">Partial</option><option value="skipped">Skipped</option>`;
+
+  // Log flow: capture what you actually did per person, then save. Blank = "completed as
+  // prescribed" (assumed → progression holds); entered values are measured. Handles weight+reps
+  // (with same-weight vs per-set), timed holds, and Done/Partial/Skipped. See Discussion.md.
   function logSession() {
     if (!CURRENT) return;
     const el = document.getElementById("session");
-    const loadables = [];
-    CURRENT.blocks.forEach((b, bi) => b.items.forEach((it, ii) => { if (it.load) loadables.push({ bi, ii, it }); }));
-    let html = `<div class="card"><h2>Log: ${CURRENT.focus}</h2><p class="path">Set what you actually did. RPE = how hard (6 easy → 10 max).</p>`;
-    const rpeOpts = `<option>6</option><option>7</option><option selected>8</option><option>9</option><option>10</option>`;
-    const personRow = (who, label, val) =>
-      `<div class="logperson" data-who="${who}">${label} ` +
-      `<input type="number" step="0.5" class="lgw" value="${val || ""}"> lb ` +
-      `<label>RPE <select class="lgr">${rpeOpts}</select></label> ` +
-      `<label class="cb">done <input type="checkbox" class="lgc" checked></label></div>`;
-    loadables.forEach((L, k) => {
-      const mv = L.it.movement;
-      html += `<div class="logrow" data-k="${k}"><div class="mname">${mv.name}</div>` +
-        personRow("him", "You", L.it.load.him.valueLb) +
-        personRow("her", "Her", L.it.load.her.valueLb) +
-        `</div>`;
+    // Loggable = everything except warm-up / mobility filler.
+    const rows = [];
+    CURRENT.blocks.forEach((b, bi) => {
+      const role = b.role || "";
+      b.items.forEach((it, ii) => {
+        if (role === "warmup" || role === "mobility" || it.movement.pattern === "mobility") return;
+        rows.push({ bi, ii, it, tt: trackingType(it.movement) });
+      });
     });
-    if (!loadables.length) html += `<p>No loaded movements — nothing to track. Just save to record the session.</p>`;
+
+    const personFields = (it, tt, who) => {
+      if (tt === "load_reps" && it.load) {
+        const init = it.load[who].valueLb;
+        const initAttr = init != null ? init : "";
+        const n = Math.min(6, Math.max(1, parseSets(it.prescription) || 3));
+        let setRows = "";
+        for (let i = 0; i < n; i++) setRows += `<div class="lgset">Set ${i + 1} <input type="number" step="0.5" class="lgsetw" placeholder="${initAttr}"> lb × <input type="number" class="lgsetr" placeholder="reps"></div>`;
+        return `<label class="cb">same wt <input type="checkbox" class="lgsame" checked></label>` +
+          `<span class="lgsimple"><input type="number" step="0.5" class="lgw" value="${initAttr}" data-init="${initAttr}"> lb</span>` +
+          `<div class="lgadv" hidden>${setRows}</div>` +
+          `<select class="lgr">${RPE_OPTS}</select>`;
+      }
+      if (tt === "time") {
+        const tgt = parseTargetSeconds(it.prescription);
+        return `<span class="lgtime">target <b>${tgt != null ? tgt + "s" : "—"}</b> · held <input type="number" class="lgsec" placeholder="${tgt != null ? tgt : ""}"> s</span>`;
+      }
+      return ``; // distance/cardio/reps: status only
+    };
+    const personRow = (it, tt, who, label) =>
+      `<div class="logperson" data-who="${who}">${label} <select class="lgstatus">${STATUS_OPTS}</select> ${personFields(it, tt, who)}</div>`;
+
+    let html = `<div class="card"><h2>Log: ${CURRENT.focus}</h2><p class="path">Leave blank = done as prescribed. Enter actuals to log details. RPE 6 easy → 10 max.</p>`;
+    rows.forEach((R, k) => {
+      html += `<div class="logrow" data-k="${k}"><div class="mname">${R.it.movement.name} <span class="lgpresc">${R.it.prescription || ""}</span></div>` +
+        personRow(R.it, R.tt, "him", "You") + personRow(R.it, R.tt, "her", "Her") + `</div>`;
+    });
+    if (!rows.length) html += `<p>Nothing to track here. Just save to record the session.</p>`;
     html += `<div class="footer"><button id="logSave" class="primary">Save</button><button id="logCancel">Cancel</button></div></div>`;
     el.innerHTML = html;
+    // Toggle per-set rows when "same wt" is unchecked.
+    el.querySelectorAll(".lgsame").forEach((cb) => cb.onchange = () => {
+      const pr = cb.closest(".logperson");
+      pr.querySelector(".lgsimple").hidden = !cb.checked;
+      pr.querySelector(".lgadv").hidden = cb.checked;
+    });
     document.getElementById("logCancel").onclick = () => renderSession();
-    document.getElementById("logSave").onclick = () => {
-      const rows = el.querySelectorAll(".logrow");
-      rows.forEach((row) => {
-        const k = +row.dataset.k; const mv = loadables[k].it.movement;
-        STATE.progress = STATE.progress || {};
-        STATE.progress[mv.id] = STATE.progress[mv.id] || {};
-        // Per-person: each of You/Her has their own weight, RPE, and done status.
-        row.querySelectorAll(".logperson").forEach((pr) => {
-          const who = pr.dataset.who;
-          const w = parseFloat(pr.querySelector(".lgw").value);
-          const rpe = parseInt(pr.querySelector(".lgr").value, 10);
-          const completed = pr.querySelector(".lgc").checked;
-          if (w > 0) STATE.progress[mv.id][who] = { load: w, rpe, completed };
+    document.getElementById("logSave").onclick = () => doLogSave(el, rows);
+  }
+
+  function parsePersonRow(pr, it, tt) {
+    const status = pr.querySelector(".lgstatus").value;
+    if (tt === "load_reps" && it.load) {
+      const rpeRaw = pr.querySelector(".lgr").value;
+      const rpe = rpeRaw ? parseInt(rpeRaw, 10) : null;
+      const same = pr.querySelector(".lgsame").checked;
+      let sets = [], touched = false;
+      if (same) {
+        const wEl = pr.querySelector(".lgw");
+        const w = parseFloat(wEl.value), init = parseFloat(wEl.dataset.init);
+        if (w > 0) sets = [{ load: w }];
+        if (w > 0 && !(init > 0 && Math.abs(w - init) < 1e-9)) touched = true;
+      } else {
+        pr.querySelectorAll(".lgset").forEach((sr) => {
+          const w = parseFloat(sr.querySelector(".lgsetw").value), r = parseFloat(sr.querySelector(".lgsetr").value);
+          if (w > 0) { sets.push({ load: w, reps: r > 0 ? r : null }); touched = true; }
         });
-      });
-      STATE.history.unshift(sessionToHistoryEntry(CURRENT)); // newest-first, for fatigue
-      // Remember which movement filled each slot, so it sticks next time (progression continuity).
-      STATE.slots = STATE.slots || {};
-      CURRENT.blocks.forEach((b) => b.items.forEach((it) => { if (it.slotKey) STATE.slots[it.slotKey] = it.movement.id; }));
-      // Advance the program sequence only when a PROGRAM day is logged (not freestyle).
-      let advanced = "";
-      if (CURRENT.mode === "program") {
-        STATE.program = STATE.program || { daysPerWeek: 6, logged: 0 };
-        STATE.program.logged = (STATE.program.logged || 0) + 1;
-        advanced = ` Up next: ${nextProgramDay(STATE.program)}.`;
+        if (!sets.length) { const init = parseFloat(pr.querySelector(".lgw").dataset.init); if (init > 0) sets = [{ load: init }]; }
       }
-      saveState();
-      renderProgram();
-      renderWeek();
-      el.innerHTML = `<div class="card"><h2>Logged ✓</h2><p>Nice work. Next time these weights will progress based on your RPE.${advanced}</p></div>`;
-      document.getElementById("logBtn").disabled = true;
-    };
+      const anyEntered = touched || rpe != null || status !== "done";
+      return { anyEntered, raw: { trackingType: "load_reps", status, rpe, sets, anyEntered, date: todayStr() } };
+    }
+    if (tt === "time") {
+      const secs = parseFloat(pr.querySelector(".lgsec").value);
+      const tgt = parseTargetSeconds(it.prescription);
+      const anyEntered = secs > 0 || status !== "done";
+      return { anyEntered, raw: { trackingType: "time", status, seconds: secs > 0 ? secs : null, targetSeconds: tgt != null ? tgt : null, anyEntered, date: todayStr() } };
+    }
+    const anyEntered = status !== "done";
+    return { anyEntered, raw: { trackingType: tt, status, anyEntered, date: todayStr() } };
+  }
+
+  function doLogSave(el, rows) {
+    const today = todayStr();
+    // First pass: parse every person row so we can warn about mixed blank/filled logs.
+    const entries = [];
+    el.querySelectorAll(".logrow").forEach((row) => {
+      const R = rows[+row.dataset.k];
+      row.querySelectorAll(".logperson").forEach((pr) => {
+        const parsed = parsePersonRow(pr, R.it, R.tt);
+        entries.push({ R, who: pr.dataset.who, anyEntered: parsed.anyEntered, rec: summarizePerf(parsed.raw) });
+      });
+    });
+    const someMeasured = entries.some((e) => e.anyEntered), someAssumed = entries.some((e) => !e.anyEntered);
+    if (someMeasured && someAssumed &&
+      !confirm("Some entries are blank. They'll be logged as completed as prescribed using the suggested weights.\n\nLog anyway?")) return;
+
+    STATE.progress = STATE.progress || {}; STATE.maxes = STATE.maxes || {}; STATE.logs = STATE.logs || [];
+    entries.forEach(({ R, who, rec }) => {
+      const mv = R.it.movement;
+      STATE.progress[mv.id] = STATE.progress[mv.id] || {};
+      // Merge: keep prior load/seconds when none were entered, but always update status/source/rpe
+      // so an assumed or partial log progresses conservatively next time.
+      STATE.progress[mv.id][who] = Object.assign({}, STATE.progress[mv.id][who] || {}, rec, { date: today });
+      if (R.it.test && rec.status === "done" && rec.top > 0) {
+        STATE.maxes[mv.id] = STATE.maxes[mv.id] || {};
+        STATE.maxes[mv.id][who] = estimate1RM(rec.top); // 3RM → est 1RM
+      }
+      STATE.logs.unshift({
+        date: today, movementId: mv.id, name: mv.name, who, slotKey: R.it.slotKey || null,
+        trackingType: rec.trackingType, status: rec.status, source: rec.source, rpe: rec.rpe,
+        load: rec.load != null ? rec.load : null, top: rec.top != null ? rec.top : null,
+        sets: rec.sets || null, seconds: rec.seconds != null ? rec.seconds : null,
+        targetSeconds: rec.targetSeconds != null ? rec.targetSeconds : null,
+      });
+    });
+
+    STATE.history.unshift(sessionToHistoryEntry(CURRENT)); // newest-first, for fatigue/volume
+    STATE.slots = STATE.slots || {};
+    CURRENT.blocks.forEach((b) => b.items.forEach((it) => { if (it.slotKey) STATE.slots[it.slotKey] = it.movement.id; }));
+    let advanced = "";
+    if (CURRENT.mode === "program") {
+      STATE.program = STATE.program || { daysPerWeek: 6, logged: 0 };
+      STATE.program.logged = (STATE.program.logged || 0) + 1;
+      advanced = ` Up next: ${nextProgramDay(STATE.program)}.`;
+    }
+    saveState();
+    renderProgram();
+    renderWeek();
+    el.innerHTML = `<div class="card"><h2>Logged ✓</h2><p>Nice work. Suggestions will adjust from what you logged.${advanced}</p><button id="seeProgress">See progress</button></div>`;
+    document.getElementById("seeProgress").onclick = () => renderProgress();
+    document.getElementById("logBtn").disabled = true;
   }
 
   function exportData() {
@@ -1192,6 +1454,7 @@ if (typeof document !== "undefined") {
         STATE.program = STATE.program || { daysPerWeek: 6, logged: 0 };
         STATE.slots = STATE.slots || {};
         STATE.progress = STATE.progress || {};
+        STATE.logs = STATE.logs || [];
         saveState();
         CURRENT = null;
         renderProgram(); renderWeek(); renderFocusPicker(); renderSession();

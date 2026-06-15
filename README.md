@@ -56,6 +56,12 @@ No App Store, no build, no signing, no expiry. To update later, edit the files a
   moderate 5–8s with more conditioning). Set/rep/RPE per slot come from per-block tables; the
   Upper Hypertrophy day stays hypertrophy-rep even in the strength block, and Pump / Recovery
   stays easy throughout. After week 12 it loops to Block 1 with your progressed weights.
+- **Heavy / max work** is scheduled, not random: macro **week 7** (end of the strength block) is
+  a heavy-triple exposure (mains at `5×3 @ RPE 8-9`), and **week 8** turns the deload into an
+  **optional 3RM test** on each strength day's main lift — *a clean heavy triple, not a true max*
+  — with a `2×8` backoff and no finisher. Logging the test updates your **estimated 1RM**
+  (≈ 3RM × 1.10) for future percentage-based suggestions. Hypertrophy days and Block 1/3 are
+  never turned into tests.
 - The **This week so far** card shows **hard sets per muscle vs target** and cardio exposures,
   so you can see what's under- or over-trained across the week.
 - Or **pick manually** from the dropdown — two families:
@@ -70,10 +76,24 @@ No App Store, no build, no signing, no expiry. To update later, edit the files a
   weight for next time.
 - **Swap** any move for a same-body-region alternative (kept near the same zone). **Don't
   suggest** bans it from future sessions (undo under **Avoided moves**).
-- **Log this session** opens a quick form: enter the actual weight you used, an **RPE** (6 easy →
-  10 max), and whether you completed it. Next time that movement appears it shows your last
-  weight and **progresses it** — RPE ≤7 nudges up, 8–9 holds, a missed set backs off. Logging
-  also feeds the recovery model so tomorrow's session knows what's still fatigued.
+- **Log this session** opens a per-person form. It's built to stay fast but capture detail when
+  you want it:
+  - **Blank = done as prescribed.** Leave everything alone and tap Save to fast-log — the
+    suggested weights are recorded and progression stays conservative (it *holds*, since it's an
+    assumed result, not a measured one). If you fill in *some* fields and leave others blank, it
+    confirms before logging the blanks as suggested.
+  - **Done / Partial / Skipped** per person (default Done). Partial backs the weight/hold off next
+    time; Skipped changes nothing; Done with a measured **RPE** progresses normally (≤7 up, 8–9
+    hold, ≥10 or missed down).
+  - **Same weight for all sets?** is on by default (one weight box). Uncheck it for **per-set
+    rows** — log a top set + backoff (e.g. 135 / 115 / 115) or a drop set. It remembers your *top*
+    set but suggests the **repeatable** weight (here ~115) next time.
+  - **Timed holds** (planks, etc.) log *target vs. actual seconds*. Hold 45s of a 60s target and
+    next time it suggests ~45s instead of blindly repeating 60.
+  Logging also feeds the recovery model so tomorrow's session knows what's still fatigued.
+- **Progress** (button in the footer) is a per-person dashboard: toggle **You / Her** and see each
+  movement's program slot, **last** set (top + repeatable weight, or hold seconds, with Partial/
+  assumed tags), **best** ever logged, **estimated 1RM**, and how many sessions you've logged it.
 - **Slot continuity:** within the program, each day's main/secondary/accessory **slot remembers
   the movement you actually did** and reuses it next time, so your load history accumulates on
   one lift instead of scattering. Swap any time — the swapped movement becomes the new slot pick.
