@@ -20,11 +20,18 @@ const PATTERN_WINDOW = { core: 2, conditioning: 2, _default: 3 };
 
 // Coarse body region each pattern trains — used to warm up the right areas.
 const PATTERN_REGION = {
-  squat: "lower", hinge: "lower", lunge: "lower",
+  squat: "lower", hinge: "lower", lunge: "lower", glutes: "lower",
   "h-push": "push", "v-push": "push", "h-pull": "pull", "v-pull": "pull",
   olympic: "full", carry: "full", core: "core", conditioning: "cardio", mobility: "full",
   biceps: "pull", triceps: "push", "side-delts": "push", "rear-delts": "pull", calves: "lower",
 };
+
+// Movement-quality tier → Program selection bonus. "core" lifts (the boring, repeatable,
+// progressable staples) get a selection boost so they're preferred over "secondary"/untagged
+// variations. (Specialty/CrossFit moves are gated out earlier via programDefault, so within the
+// program pool the meaningful distinction is core vs. everything-else.)
+const TIER_BONUS = { core: 1.0, secondary: 0 };
+function tierBonus(m) { return TIER_BONUS[m.tier] != null ? TIER_BONUS[m.tier] : 0; }
 
 // Which body regions a focus's session will train (so the warm-up can target them).
 function computeTargetRegions(cfg) {
@@ -620,7 +627,7 @@ function buildSession(data, opts) {
 const PROGRAM_DAYS = {
   "Push Strength": { category: "upper", primary: ["h-push", "v-push"], secondary: ["triceps", "side-delts"], forbidden: ["squat", "hinge", "lunge", "h-pull", "v-pull"], cap: "heavy",
     blocks: ["prep", "main_strength", "secondary_strength", "accessory_superset", "finisher?"] },
-  "Lower Strength — Squat": { category: "lower", primary: ["squat"], secondary: ["lunge", "calves", "core", "hinge"], forbidden: ["h-push", "v-push", "h-pull", "v-pull"], cap: "heavy",
+  "Lower Strength — Squat": { category: "lower", primary: ["squat"], secondary: ["lunge", "calves", "core", "hinge", "glutes"], forbidden: ["h-push", "v-push", "h-pull", "v-pull"], cap: "heavy",
     blocks: ["prep", "main_strength", "secondary_strength", "accessory", "core"] },
   "Pull Strength": { category: "upper", primary: ["h-pull", "v-pull"], secondary: ["biceps", "rear-delts"], forbidden: ["squat", "hinge", "lunge", "h-push", "v-push"], cap: "heavy",
     blocks: ["prep", "main_strength", "secondary_strength", "accessory_superset", "carry_core"] },
@@ -628,7 +635,7 @@ const PROGRAM_DAYS = {
     blocks: ["prep", "conditioning", "core", "mobility"] },
   "Upper Hypertrophy": { category: "upper", primary: ["h-push", "h-pull", "v-push", "v-pull"], secondary: ["side-delts", "rear-delts", "biceps", "triceps"], forbidden: ["squat", "hinge", "lunge"], cap: "moderate",
     blocks: ["prep", "superset_a", "superset_b", "arms_delts"] },
-  "Lower Hypertrophy — Hinge": { category: "lower", primary: ["hinge"], secondary: ["lunge", "calves", "core"], forbidden: ["h-push", "v-push", "h-pull", "v-pull"], cap: "moderate",
+  "Lower Hypertrophy — Hinge": { category: "lower", primary: ["hinge"], secondary: ["lunge", "calves", "core", "glutes"], forbidden: ["h-push", "v-push", "h-pull", "v-pull"], cap: "moderate",
     blocks: ["prep", "main_hypertrophy", "secondary_hypertrophy", "accessory", "calves_core"] },
   "Pump / Recovery": { category: "recovery", primary: ["biceps", "triceps", "side-delts", "rear-delts", "calves", "core"], secondary: ["biceps", "triceps", "side-delts", "rear-delts", "calves"], forbidden: ["squat", "hinge", "lunge", "olympic"], cap: "easy",
     blocks: ["easy_cardio", "pump", "core", "mobility"] },
@@ -795,6 +802,7 @@ function buildProgramSession(data, opts) {
   }
   function score(m) {
     let s = freshness(m.pattern, patternFatigue);
+    s += tierBonus(m); // prefer core staples over secondary variations
     if (m.pattern === "h-push" || m.pattern === "v-push") s += bias.pushBias * 0.15;
     if (m.pattern === "h-pull" || m.pattern === "v-pull") s += bias.pullBias * 0.15;
     if (m.pattern === "squat") s += bias.squatBias * 0.15;
@@ -1015,6 +1023,7 @@ if (typeof module !== "undefined" && module.exports) {
     pickFocus, buildSession, buildProgramSession, roundLoad, nearestBarbell, nearestInLadder,
     loadSuggestion, swapCandidates, sessionToHistoryEntry, pctForReps, progressDir,
     trackingType, parseTargetSeconds, repeatableLoad, summarizePerf, holdSuggestion, summarizeMovementLogs,
+    tierBonus, PATTERN_REGION,
     pairZoneDistance, prescribe, computeTargetRegions, FOCUSES, PROGRAM_DAYS,
     PROGRAM_SEQUENCE, programSequence, nextProgramDay, dayNumber, mesocycleWeek, MESO,
     macrocycleWeek, macroBlockIndex, macroBlockKey, BLOCK_KEYS, BLOCK_NAMES, MACRO_BLOCKS, slotScheme,

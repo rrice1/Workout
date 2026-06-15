@@ -116,3 +116,10 @@ thrusters, devil press, push-press/jerk variants, floor press, muscle-ups, box j
 tagged `"programDefault": false`, which keeps them out of generated program sessions and program
 swaps — but they're still available in **Freestyle** mode and as manual swaps there. To pull a
 movement back into the program, delete its `programDefault` flag (or set it to `true`).
+
+**Movement tiers.** Within the Program pool, movements tagged `"tier": "core"` (the boring,
+repeatable, easy-to-progress staples — bench, squat, RDL, pulldown, hack squat, cable lateral
+raise, etc.) get a selection boost so they show up more than `secondary`/untagged variations.
+Specialty/CrossFit moves are already excluded via `programDefault`, so the in-program choice is
+really "core vs. everything else." A few moves are scheduled deliberately rare with
+`frequencyCapPerWeeks` (e.g. Sumo Deadlift).

@@ -161,7 +161,9 @@ for (const f of Object.keys(G.FOCUSES)) for (let seed = 1; seed <= 30; seed++) {
   }
 }
 ok("every superset is within 1 zone (hard rule)", withinOne === supTotal, `${withinOne}/${supTotal}`);
-ok("most supersets are exactly same-zone", sameZone >= supTotal * 0.75, `${sameZone}/${supTotal}`);
+// Same-zone is a soft preference (the hard rule is within-1); with cable/machine accessories in
+// Zone C now in the pool, more pairs are adjacent rather than identical-zone, which is fine.
+ok("supersets are at least often same-zone", sameZone >= supTotal * 0.5, `${sameZone}/${supTotal}`);
 ok("a labeled block's zone is shared by all its moves (no false labels)", blockZoneHonest === blockZoneTotal, `${blockZoneHonest}/${blockZoneTotal}`);
 
 console.log("\n== No duplicate movement within a session ==");
@@ -408,7 +410,7 @@ console.log("\n== Movement library cleanup ==");
 // Program mode never surfaces non-default (CrossFit/Olympic/specialty) movements across all days/seeds.
 const NON_DEFAULT = new Set(movements.filter(m => m.programDefault === false).map(m => m.id));
 ok("excluded set is non-empty", NON_DEFAULT.size >= 15);
-ok("bench/box dip + parallel dips are program-eligible", !NON_DEFAULT.has("bench-box-dip") && !NON_DEFAULT.has("tricep-dips"));
+ok("bench/box dip program-eligible; parallel dips opt-in", !NON_DEFAULT.has("bench-box-dip") && NON_DEFAULT.has("tricep-dips"));
 let leaked = null;
 for (const day of Object.keys(G.PROGRAM_DAYS)) {
   for (let seed = 1; seed <= 40 && !leaked; seed++) {
@@ -448,6 +450,48 @@ ok("bodyweight warmup -> easy reps", G.prescribe({ pattern: "h-push", loadable: 
 ok("unilateral mobility warmup adds /side", G.prescribe({ pattern: "mobility", loadable: false, unilateral: true }, "warmup", () => 0.5) === "8–10 controlled reps/side");
 ok("loaded warmup ramp -> light reps", G.prescribe({ pattern: "squat", loadable: true }, "warmup", () => 0.5) === "8–10 light reps");
 ok("no warmup prescription says '(light)'", !/\(light\)/.test(G.prescribe({ pattern: "mobility", loadable: false }, "warmup", () => 0.5)));
+
+console.log("\n== Tier system (core preferred over secondary) ==");
+ok("tierBonus core > secondary; default == secondary", G.tierBonus({ tier: "core" }) > G.tierBonus({ tier: "secondary" }) && G.tierBonus({}) === G.tierBonus({ tier: "secondary" }));
+// Behaviorally: the hinge main (where core RDLs compete with untagged deadlift/glute-bridge variants)
+// is a core-tier movement the majority of the time.
+let hingeCore = 0, hingeTot = 0;
+for (let seed = 1; seed <= 60; seed++) {
+  const s = G.buildProgramSession(DATA, { today, history: [], maxes: {}, settings: {}, day: "Lower Hypertrophy — Hinge", seed, macroBlock: "hypertrophy_base", mesoWeek: 1 });
+  const main = s.blocks.find(b => b.role === "strength1");
+  if (main) { hingeTot++; const mv = movements.find(x => x.id === main.items[0].movement.id); if (mv.tier === "core") hingeCore++; }
+}
+ok("hinge main is core-tier most of the time", hingeCore >= hingeTot * 0.6, `${hingeCore}/${hingeTot}`);
+
+console.log("\n== New conventional movements ==");
+ok("glutes pattern maps to lower region", G.PATTERN_REGION.glutes === "lower");
+for (const id of ["incline-bench-bb", "machine-pec-deck", "cable-row", "assisted-pullup-machine", "hack-squat", "cable-lateral-raise", "reverse-pec-deck", "hip-abduction-machine", "cable-crunch", "dead-bug", "v-up-single-leg"]) {
+  ok(`added: ${id}`, movements.some(m => m.id === id));
+}
+// Hack squat (squat main) can surface in Lower Strength; hip abduction (glutes) in a lower day.
+let sawHack = false, sawAbd = false;
+for (let seed = 1; seed <= 60; seed++) {
+  const ls = G.buildProgramSession(DATA, { today, history: [], maxes: {}, settings: {}, day: "Lower Strength — Squat", seed, macroBlock: "hypertrophy_base", mesoWeek: 1 });
+  if (allMoves(ls).some(m => m.id === "hack-squat")) sawHack = true;
+  const lh = G.buildProgramSession(DATA, { today, history: [], maxes: {}, settings: {}, day: "Lower Hypertrophy — Hinge", seed, macroBlock: "hypertrophy_base", mesoWeek: 1 });
+  if (allMoves(lh).some(m => m.id === "hip-abduction-machine")) sawAbd = true;
+}
+ok("hack squat can be selected in Lower Strength", sawHack);
+ok("hip abduction (glutes) can be selected on a lower day", sawAbd);
+
+console.log("\n== Downgrades & core splits ==");
+// KB swing lost its strength role -> never appears in a program session.
+let sawSwing = false;
+for (const day of Object.keys(G.PROGRAM_DAYS)) for (let seed = 1; seed <= 25; seed++) {
+  const s = G.buildProgramSession(DATA, { today, history: [], maxes: {}, settings: {}, day, seed, macroBlock: "hypertrophy_base", mesoWeek: 1 });
+  if (allMoves(s).some(m => m.id === "kb-swing")) sawSwing = true;
+}
+ok("KB swing never appears in program (metcon-only now)", !sawSwing);
+const rt = movements.find(m => m.id === "russian-twist");
+ok("Russian Twist is a loadable med-ball move", rt.loadable === true && rt.implement === "medball");
+const lc = movements.find(m => m.id === "leg-curl");
+ok("Leg Curl renamed to Seated Leg Curl", lc.name === "Seated Leg Curl");
+ok("Sumo deadlift is rare (frequency-capped)", movements.find(m => m.id === "sumo-deadlift-bb").frequencyCapPerWeeks > 0);
 
 console.log(`\n==== ${pass} passed, ${fail} failed ====`);
 process.exit(fail ? 1 : 0);
