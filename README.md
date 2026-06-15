@@ -50,6 +50,12 @@ No App Store, no build, no signing, no expiry. To update later, edit the files a
   skip a workout; freestyle sessions don't advance it). It runs a **4-week wave**: weeks 1–3
   ramp up, week 4 is an automatic **deload** (lighter loads, fewer sets). Toggle **6 vs 7
   training days** (the 7th is an easy Pump / Recovery day, never required).
+- Those 4-week waves sit inside a **12-week macrocycle** of three blocks that change the
+  *feel* without changing the split: **Hypertrophy Base** (wk 1–4, mostly 8s), **Strength-Biased
+  Hypertrophy** (wk 5–8, mains drop to 5s/4s/3s), then **Fitness / Performance** (wk 9–12,
+  moderate 5–8s with more conditioning). Set/rep/RPE per slot come from per-block tables; the
+  Upper Hypertrophy day stays hypertrophy-rep even in the strength block, and Pump / Recovery
+  stays easy throughout. After week 12 it loops to Block 1 with your progressed weights.
 - The **This week so far** card shows **hard sets per muscle vs target** and cardio exposures,
   so you can see what's under- or over-trained across the week.
 - Or **pick manually** from the dropdown — two families:

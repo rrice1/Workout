@@ -549,11 +549,51 @@ function mesocycleWeek(prog) { const seq = programSequence(prog.daysPerWeek); re
 
 // 4-week wave: ramp volume/intensity weeks 1–3, deload week 4.
 const MESO = {
-  1: { name: "Baseline", setDelta: 0, deload: false },
-  2: { name: "Build", setDelta: 0, deload: false },
-  3: { name: "Push", setDelta: 1, deload: false },
-  4: { name: "Deload", setDelta: -1, deload: true },
+  1: { name: "Baseline", deload: false },
+  2: { name: "Build", deload: false },
+  3: { name: "Push", deload: false },
+  4: { name: "Deload", deload: true },
 };
+
+// ---- 12-week macrocycle: three 4-week blocks, each with its own set/rep/RPE tables ----
+const BLOCK_KEYS = ["hypertrophy_base", "strength_biased", "fitness_performance"];
+const BLOCK_NAMES = { hypertrophy_base: "Hypertrophy Base", strength_biased: "Strength-Biased Hypertrophy", fitness_performance: "Fitness / Performance" };
+
+// Per block: prescriptions by tier (main = heavy/main lift; secondary; accessory; hyper =
+// hypertrophy-day mains that must stay in the 8–15 range). week1–4 = baseline/build/push/deload.
+const MACRO_BLOCKS = {
+  hypertrophy_base: {
+    main: { week1: { sets: 3, reps: "8", rpe: "6-7" }, week2: { sets: 4, reps: "8", rpe: "7" }, week3: { sets: 4, reps: "8-10", rpe: "8" }, week4: { sets: 2, reps: "8", rpe: "6" } },
+    secondary: { week1: { sets: 3, reps: "10", rpe: "7" }, week2: { sets: 3, reps: "10-12", rpe: "7-8" }, week3: { sets: 4, reps: "10-12", rpe: "8" }, week4: { sets: 2, reps: "10", rpe: "6" } },
+    accessory: { week1: { sets: 2, reps: "12-15", rpe: "7" }, week2: { sets: 3, reps: "12-15", rpe: "7-8" }, week3: { sets: 3, reps: "12-15", rpe: "8-9" }, week4: { sets: 1, reps: "12", rpe: "6" } },
+    hyper: { week1: { sets: 3, reps: "10-12", rpe: "7" }, week2: { sets: 4, reps: "10-12", rpe: "7-8" }, week3: { sets: 4, reps: "10-12", rpe: "8" }, week4: { sets: 2, reps: "12", rpe: "6" } },
+  },
+  strength_biased: {
+    main: { week1: { sets: 4, reps: "5", rpe: "7" }, week2: { sets: 5, reps: "4", rpe: "7-8" }, week3: { sets: 5, reps: "3", rpe: "8-9" }, week4: { sets: 3, reps: "5", rpe: "6" } },
+    secondary: { week1: { sets: 3, reps: "6-8", rpe: "7" }, week2: { sets: 4, reps: "6-8", rpe: "8" }, week3: { sets: 4, reps: "6", rpe: "8" }, week4: { sets: 2, reps: "8", rpe: "6" } },
+    accessory: { week1: { sets: 2, reps: "10-12", rpe: "7" }, week2: { sets: 3, reps: "10-12", rpe: "7-8" }, week3: { sets: 3, reps: "8-12", rpe: "8" }, week4: { sets: 1, reps: "10-12", rpe: "6" } },
+    hyper: { week1: { sets: 3, reps: "8-10", rpe: "7" }, week2: { sets: 3, reps: "8-10", rpe: "8" }, week3: { sets: 3, reps: "8-10", rpe: "8" }, week4: { sets: 2, reps: "10", rpe: "6" } },
+  },
+  fitness_performance: {
+    main: { week1: { sets: 3, reps: "6", rpe: "7" }, week2: { sets: 4, reps: "6", rpe: "7-8" }, week3: { sets: 3, reps: "5 + rep-out", rpe: "8" }, week4: { sets: 2, reps: "6", rpe: "6" } },
+    secondary: { week1: { sets: 3, reps: "8-10", rpe: "7" }, week2: { sets: 3, reps: "8-10", rpe: "7-8" }, week3: { sets: 3, reps: "8", rpe: "8" }, week4: { sets: 2, reps: "8", rpe: "6" } },
+    accessory: { week1: { sets: 2, reps: "12-15", rpe: "7" }, week2: { sets: 2, reps: "12-15", rpe: "7-8" }, week3: { sets: 3, reps: "12-20", rpe: "8" }, week4: { sets: 1, reps: "12-15", rpe: "6" } },
+    hyper: { week1: { sets: 3, reps: "10-15", rpe: "7" }, week2: { sets: 3, reps: "12-15", rpe: "7-8" }, week3: { sets: 3, reps: "10-15", rpe: "8" }, week4: { sets: 2, reps: "12", rpe: "6" } },
+  },
+};
+
+function macrocycleWeek(prog) { const seq = programSequence(prog.daysPerWeek); const cycles = Math.floor((prog.logged || 0) / seq.length); return (cycles % 12) + 1; }
+function macroBlockIndex(prog) { return Math.floor((macrocycleWeek(prog) - 1) / 4); } // 0,1,2
+function macroBlockKey(prog) { return BLOCK_KEYS[macroBlockIndex(prog)]; }
+
+function firstRep(reps) { const m = String(reps).match(/\d+/); return m ? parseInt(m[0], 10) : 8; }
+// Resolve a slot's scheme string + load-rep target for a given tier/block/week.
+function slotScheme(tier, blockKey, week) {
+  const b = MACRO_BLOCKS[blockKey] || MACRO_BLOCKS.hypertrophy_base;
+  const t = b[tier] || b.accessory;
+  const w = t["week" + week] || t.week1;
+  return { scheme: `${w.sets}×${w.reps} @ RPE ${w.rpe}${week === 4 ? " (deload)" : ""}`, reps: firstRep(w.reps) };
+}
 
 // ---- Weekly volume accounting (readout) ----
 const VOLUME_TARGETS = { chest: 10, back: 12, quads: 10, "ham/glutes": 10, delts: 10, arms: 10, calves: 8, core: 8 };
@@ -586,8 +626,9 @@ function weeklySets(history, today) {
         const buckets = new Set((it.muscles || []).map((mu) => MUSCLE_BUCKET[mu]).filter(Boolean));
         for (const b of buckets) sets[b] += n;
       }
-      // Only real conditioning work counts as a cardio exposure — not the warm-up's easy cardio.
-      if (it.pattern === "conditioning" && ["conditioning", "metcon", "finisher"].includes(it.role)) hadCardio = true;
+      // Only real conditioning work counts as a cardio exposure — not the warm-up's easy
+      // cardio or a short finisher cap.
+      if (it.pattern === "conditioning" && ["conditioning", "metcon"].includes(it.role)) hadCardio = true;
     }
     if (hadCardio) cardioExposures++;
   }
@@ -607,9 +648,8 @@ function buildProgramSession(data, opts) {
   if (!cfg) throw new Error("Unknown program day: " + opts.day);
 
   const week = opts.mesoWeek || 1;
-  const sd = (MESO[week] || MESO[1]).setDelta;
+  const block = opts.macroBlock || "hypertrophy_base";
   const deload = (MESO[week] || MESO[1]).deload;
-  const S = (base) => Math.max(2, base + sd); // set count adjusted by mesocycle week
 
   const { patternFatigue } = computeFatigue(history, today);
   const bias = balanceBias(history, today);
@@ -736,16 +776,16 @@ function buildProgramSession(data, opts) {
     if (optional && rng() < 0.5) return null;
     switch (t) {
       case "prep": return prep();
-      case "main_strength": { const ms = mainScheme(rng, week); return single("Strength 1 (main)", "strength1", deload ? "light" : "heavy", { patterns: patternsFor(cfg, "primary"), roles: ["strength1"], reps: ms.reps, scheme: ms.scheme }); }
-      case "secondary_strength": return single("Strength 2 (secondary)", "strength2", "med", { patterns: patternsFor(cfg, "primarySecondary"), roles: ["strength2"], reps: 8, scheme: `${S(3)}×8 @ RPE ${deload ? 6 : 8}` });
-      case "main_hypertrophy": return single("Main (hypertrophy)", "strength1", "med", { patterns: patternsFor(cfg, "primary"), roles: ["strength1", "strength2"], reps: 8, scheme: `${S(4)}×8 @ RPE ${deload ? 6 : 8}` });
-      case "secondary_hypertrophy": return single("Secondary (hypertrophy)", "strength2", "med", { patterns: patternsFor(cfg, "primarySecondary"), roles: ["strength2", "accessory"], reps: 11, scheme: `${S(3)}×10–12` });
-      case "accessory": return single("Accessory", "accessory", "light", { patterns: patternsFor(cfg, "secondary"), roles: ["accessory", "strength2"], reps: 12, scheme: `${S(3)}×12` });
-      case "accessory_superset": return superset("Accessory superset", "accessory", "light", { patterns: patternsFor(cfg, "secondary"), roles: ["accessory", "strength2"] }, { patterns: patternsFor(cfg, "secondary").concat(["core"]), roles: ["accessory", "strength2", "core"] }, 14, `${S(3)}×12–15`);
-      case "superset_a": return superset("Superset A (push/pull)", "strength2", "med", { patterns: ["h-push", "v-push"], roles: ["strength2", "accessory"] }, { patterns: ["h-pull", "v-pull"], roles: ["strength2", "accessory"] }, 10, `${S(3)}×10`);
-      case "superset_b": return superset("Superset B (push/pull)", "strength2", "med", { patterns: ["v-push", "h-push"], roles: ["strength2", "accessory"] }, { patterns: ["v-pull", "h-pull"], roles: ["strength2", "accessory"] }, 11, `${S(3)}×10–12`);
-      case "arms_delts": return superset("Arms & Delts", "accessory", "light", { patterns: ["biceps", "triceps"], roles: ["accessory"] }, { patterns: ["side-delts", "rear-delts"], roles: ["accessory"] }, 14, `${S(3)}×12–15`);
-      case "pump": return circuit("Pump Circuit", "accessory", "light", { patterns: ["biceps", "triceps", "side-delts", "rear-delts", "calves"], roles: ["accessory"] }, deload ? 2 : 4, `${S(3)}×15–20`, 15);
+      case "main_strength": { const sc = slotScheme("main", block, week); return single("Strength 1 (main)", "strength1", deload ? "light" : "heavy", { patterns: patternsFor(cfg, "primary"), roles: ["strength1"], reps: sc.reps, scheme: sc.scheme }); }
+      case "secondary_strength": { const sc = slotScheme("secondary", block, week); return single("Strength 2 (secondary)", "strength2", "med", { patterns: patternsFor(cfg, "primarySecondary"), roles: ["strength2"], reps: sc.reps, scheme: sc.scheme }); }
+      case "main_hypertrophy": { const sc = slotScheme("hyper", block, week); return single("Main (hypertrophy)", "strength1", "med", { patterns: patternsFor(cfg, "primary"), roles: ["strength1", "strength2"], reps: sc.reps, scheme: sc.scheme }); }
+      case "secondary_hypertrophy": { const sc = slotScheme("accessory", block, week); return single("Secondary (hypertrophy)", "strength2", "med", { patterns: patternsFor(cfg, "primarySecondary"), roles: ["strength2", "accessory"], reps: sc.reps, scheme: sc.scheme }); }
+      case "accessory": { const sc = slotScheme("accessory", block, week); return single("Accessory", "accessory", "light", { patterns: patternsFor(cfg, "secondary"), roles: ["accessory", "strength2"], reps: sc.reps, scheme: sc.scheme }); }
+      case "accessory_superset": { const sc = slotScheme("accessory", block, week); return superset("Accessory superset", "accessory", "light", { patterns: patternsFor(cfg, "secondary"), roles: ["accessory", "strength2"] }, { patterns: patternsFor(cfg, "secondary").concat(["core"]), roles: ["accessory", "strength2", "core"] }, sc.reps, sc.scheme); }
+      case "superset_a": { const sc = slotScheme("hyper", block, week); return superset("Superset A (push/pull)", "strength2", "med", { patterns: ["h-push", "v-push"], roles: ["strength2", "accessory"] }, { patterns: ["h-pull", "v-pull"], roles: ["strength2", "accessory"] }, sc.reps, sc.scheme); }
+      case "superset_b": { const sc = slotScheme("hyper", block, week); return superset("Superset B (push/pull)", "strength2", "med", { patterns: ["v-push", "h-push"], roles: ["strength2", "accessory"] }, { patterns: ["v-pull", "h-pull"], roles: ["strength2", "accessory"] }, sc.reps, sc.scheme); }
+      case "arms_delts": { const sc = slotScheme("accessory", block, week); return superset("Arms & Delts", "accessory", "light", { patterns: ["biceps", "triceps"], roles: ["accessory"] }, { patterns: ["side-delts", "rear-delts"], roles: ["accessory"] }, sc.reps, sc.scheme); }
+      case "pump": return circuit("Pump Circuit", "accessory", "light", { patterns: ["biceps", "triceps", "side-delts", "rear-delts", "calves"], roles: ["accessory"] }, deload ? 2 : 3, "2–3×15–20 (easy)", 15);
       case "finisher": return deload ? null : finisher();
       case "core": return circuit("Core", "core", "light", { patterns: ["core"] }, 2, null, 12);
       case "carry_core": return comboBlock("Carry & Core", { patterns: ["carry"], roles: ["metcon"] }, null, 12);
@@ -764,15 +804,6 @@ function buildProgramSession(data, opts) {
   return { date: today, focus: opts.day, mode: "program", category: cfg.category, zonePath: path, blocks, seed: opts.seed || 1 };
 }
 
-function mainScheme(rng, week) {
-  if (week === 4) return { scheme: "3×5 @ RPE 6 (deload)", reps: 5 };
-  if (week === 3) { // push week — heavier
-    const o = [{ scheme: "5×3 @ RPE 8–9", reps: 3 }, { scheme: "4×4 @ RPE 8–9", reps: 4 }, { scheme: "build to a heavy 3 (~3RM)", reps: 3 }];
-    return o[Math.floor(rng() * o.length)];
-  }
-  const o = [{ scheme: "4×5 @ RPE 7–8", reps: 5 }, { scheme: "5×5 @ RPE 7", reps: 5 }, { scheme: "5×3 @ RPE 8", reps: 3 }];
-  return o[Math.floor(rng() * o.length)];
-}
 
 // Assign each block the zone that ALL its movements share (honest label). If the
 // movements don't share a single zone (e.g. a superset straddling B and C), leave
@@ -856,6 +887,7 @@ if (typeof module !== "undefined" && module.exports) {
     loadSuggestion, swapCandidates, sessionToHistoryEntry, pctForReps,
     pairZoneDistance, prescribe, computeTargetRegions, FOCUSES, PROGRAM_DAYS,
     PROGRAM_SEQUENCE, programSequence, nextProgramDay, dayNumber, mesocycleWeek, MESO,
+    macrocycleWeek, macroBlockIndex, macroBlockKey, BLOCK_KEYS, BLOCK_NAMES, MACRO_BLOCKS, slotScheme,
     weeklySets, parseSets, VOLUME_TARGETS,
   };
 }
@@ -911,7 +943,7 @@ if (typeof document !== "undefined") {
     const seed = (Date.now() & 0xffffffff) ^ Math.floor(Math.random() * 1e9);
     const base = { today: todayStr(), history: STATE.history, maxes: STATE.maxes, progress: STATE.progress || {}, slots: STATE.slots || {}, settings: STATE.settings, avoidList: STATE.avoidList, seed };
     if (choice && PROGRAM_DAYS[choice]) {
-      CURRENT = buildProgramSession(DATA, Object.assign({ day: choice, mesoWeek: mesocycleWeek(STATE.program) }, base));
+      CURRENT = buildProgramSession(DATA, Object.assign({ day: choice, mesoWeek: mesocycleWeek(STATE.program), macroBlock: macroBlockKey(STATE.program) }, base));
     } else {
       // Freestyle CrossFit-style: a legacy focus name, or undefined for auto.
       CURRENT = buildSession(DATA, Object.assign({ focusOverride: (choice && FOCUSES[choice]) ? choice : undefined }, base));
@@ -926,10 +958,15 @@ if (typeof document !== "undefined") {
     const wk = mesocycleWeek(prog);
     const seqLen = programSequence(prog.daysPerWeek).length;
     const meso = MESO[wk];
+    const macroWk = macrocycleWeek(prog);
+    const blockIdx = macroBlockIndex(prog);
+    const blockName = BLOCK_NAMES[macroBlockKey(prog)];
     el.innerHTML =
       `<h2>Your program</h2>` +
-      `<p><b>Next:</b> Week ${wk}/4 · Day ${dayNumber(prog)} of ${seqLen} — <b>${day}</b></p>` +
-      `<p class="path">${meso.name} week${meso.deload ? " — take it easy" : ""}</p>` +
+      `<p class="path">Balanced Hypertrophy + Fitness · Macro Week ${macroWk}/12</p>` +
+      `<p><b>Block ${blockIdx + 1}/3:</b> ${blockName}</p>` +
+      `<p>Meso Week ${wk}/4 (${meso.name}${meso.deload ? " — take it easy" : ""}) · Day ${dayNumber(prog)} of ${seqLen}</p>` +
+      `<p><b>Next:</b> ${day}</p>` +
       `<button id="nextBtn" class="primary">Generate Next Workout</button>` +
       `<div class="dpw">Training days/week: ` +
       `<button class="dpwbtn ${prog.daysPerWeek === 6 ? "on" : ""}" data-d="6">6</button>` +

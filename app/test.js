@@ -290,6 +290,32 @@ const rdlHist = [{ date: today, focus: "x", items: [{ movementId: "rdl-bb", patt
 const rv = G.weeklySets(rdlHist, today);
 ok("multi-muscle move counts its bucket once (no double count)", rv.sets["ham/glutes"] === 3, `ham/glutes=${rv.sets["ham/glutes"]}`);
 
+console.log("\n== 12-week macrocycle ==");
+ok("macro week 1 = Block 1 (Hypertrophy Base)", G.macrocycleWeek({ daysPerWeek: 6, logged: 0 }) === 1 && G.macroBlockKey({ daysPerWeek: 6, logged: 0 }) === "hypertrophy_base");
+ok("week 5 = Block 2 (Strength-Biased)", G.macrocycleWeek({ daysPerWeek: 6, logged: 6 * 4 }) === 5 && G.macroBlockKey({ daysPerWeek: 6, logged: 6 * 4 }) === "strength_biased");
+ok("week 9 = Block 3 (Fitness/Performance)", G.macrocycleWeek({ daysPerWeek: 6, logged: 6 * 8 }) === 9 && G.macroBlockKey({ daysPerWeek: 6, logged: 6 * 8 }) === "fitness_performance");
+ok("week 13 wraps to week 1 / Block 1", G.macrocycleWeek({ daysPerWeek: 6, logged: 6 * 12 }) === 1 && G.macroBlockKey({ daysPerWeek: 6, logged: 6 * 12 }) === "hypertrophy_base");
+// Block identity in the actual schemes: same day, different blocks -> different main rep targets.
+const mainReps = (blk, wk) => {
+  const s = G.buildProgramSession(DATA, { today, history: [], maxes: {}, settings: {}, day: "Push Strength", macroBlock: blk, mesoWeek: wk, seed: 5 });
+  return s.blocks.find(b => b.role === "strength1").items[0].prescription;
+};
+ok("Block 1 main is rep-ish (8s)", /×8/.test(mainReps("hypertrophy_base", 1)), mainReps("hypertrophy_base", 1));
+ok("Block 2 push week (wk3) main goes heavy (3s)", /×3/.test(mainReps("strength_biased", 3)), mainReps("strength_biased", 3));
+ok("Block 3 main is moderate (6s)", /×6/.test(mainReps("fitness_performance", 1)), mainReps("fitness_performance", 1));
+// Upper Hypertrophy must NOT become strength-biased in Block 2 (stays >=8 reps).
+const uhMain = G.buildProgramSession(DATA, { today, history: [], maxes: {}, settings: {}, day: "Upper Hypertrophy", macroBlock: "strength_biased", mesoWeek: 3, seed: 5 }).blocks.find(b => b.name.indexOf("Superset") > -1).items[0].prescription;
+ok("Upper Hypertrophy stays hypertrophy in Block 2 (no triples)", !/×[1-5] /.test(uhMain) && /×(8|10|12|15)/.test(uhMain), uhMain);
+// Pump / Recovery stays easy in every block.
+for (const blk of G.BLOCK_KEYS) {
+  const pump = G.buildProgramSession(DATA, { today, history: [], maxes: {}, settings: {}, day: "Pump / Recovery", macroBlock: blk, mesoWeek: 3, seed: 5 });
+  ok(`Pump stays easy in ${blk}`, pump.blocks.every(b => b.intensity !== "heavy" && b.intensity !== "med") || pump.blocks.filter(b=>b.role==="accessory").every(b=>/15–20/.test(b.items[0].prescription)), JSON.stringify(pump.blocks.map(b=>b.role)));
+}
+// Deload week (4) marks schemes and skips finisher.
+const dl = G.buildProgramSession(DATA, { today, history: [], maxes: {}, settings: {}, day: "Push Strength", macroBlock: "strength_biased", mesoWeek: 4, seed: 5 });
+ok("deload schemes are labeled", /deload/i.test(dl.blocks.find(b => b.role === "strength1").items[0].prescription));
+ok("deload skips finisher", !dl.blocks.some(b => b.role === "finisher"));
+
 console.log("\n== Slot-level stickiness ==");
 // Main strength + accessory items carry a slotKey like "Push Strength::strength1::0".
 const ps = G.buildProgramSession(DATA, { today, history: [], maxes: {}, settings: {}, day: "Push Strength", seed: 4 });
