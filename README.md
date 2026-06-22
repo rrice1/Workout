@@ -102,6 +102,11 @@ No App Store, no build, no signing, no expiry. To update later, edit the files a
   move (respecting region, avoid-list, programDefault, and busy-day crowd rules). **✕ Remove** asks
   to confirm, and an **↶ Undo** button reverses your last add/remove. A **workload meter** shows
   total working sets and turns amber/red if you're piling on too much volume.
+- **Saved automatically + named saves:** the workout you're looking at is **auto-saved on the
+  device**, so it's still there when you reopen the app (generate in the morning, it's waiting at
+  the gym). **Save** stores a **named** copy you can reopen anytime from the **Saved** screen
+  (footer) — handy for a go-to session. Logging a session clears the auto-saved one so you next see
+  your upcoming day.
 - **Share a workout (serverless):** the **Share** button packs the *plan* (exercises, sets/reps —
   not weights) into a **link** and a **code**. Use the native **Share…** sheet (AirDrop / Messages)
   or copy the link/code; open it on the other device — your wife's phone, or your own phone at the

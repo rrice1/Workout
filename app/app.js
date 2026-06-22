@@ -1163,7 +1163,7 @@ if (typeof module !== "undefined" && module.exports) {
 // ============================================================================
 if (typeof document !== "undefined") {
   const STORE_KEY = "wgen.state.v1";
-  const APP_VERSION = "v19"; // keep in sync with CACHE in service-worker.js; bump on each deploy
+  const APP_VERSION = "v20"; // keep in sync with CACHE in service-worker.js; bump on each deploy
   let DATA = { movements: [], gym: {} };
   let STATE = loadState();
   let CURRENT = null; // current generated session
@@ -1174,7 +1174,7 @@ if (typeof document !== "undefined") {
       const raw = localStorage.getItem(STORE_KEY);
       if (raw) return JSON.parse(raw);
     } catch (e) {}
-    return { history: [], maxes: {}, progress: {}, slots: {}, logs: [], program: { daysPerWeek: 6, logged: 0 }, settings: { bars: { him: "mens", her: "womens" } }, avoidList: [] };
+    return { history: [], maxes: {}, progress: {}, slots: {}, logs: [], saved: [], current: null, program: { daysPerWeek: 6, logged: 0 }, settings: { bars: { him: "mens", her: "womens" } }, avoidList: [] };
   }
   function saveState() { localStorage.setItem(STORE_KEY, JSON.stringify(STATE)); }
   function todayStr() { const d = new Date(); return d.toISOString().slice(0, 10); }
@@ -1193,14 +1193,18 @@ if (typeof document !== "undefined") {
     STATE.program = STATE.program || { daysPerWeek: 6, logged: 0 };
     STATE.slots = STATE.slots || {};
     STATE.logs = STATE.logs || [];
+    STATE.saved = STATE.saved || [];
     renderProgram();
     renderWeek();
     renderFocusPicker();
     wireButtons();
     renderVersion(false);
-    // If opened from a shared link, load that workout.
+    // If opened from a shared link, load that workout; otherwise restore the last one you had open.
     if (location.hash && location.hash.indexOf("#w=") === 0) {
       try { loadShared(location.hash); history.replaceState(null, "", location.pathname + location.search); } catch (e) {}
+    } else if (STATE.current) {
+      CURRENT = STATE.current;
+      renderSession();
     }
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("service-worker.js").then((reg) => {
@@ -1231,6 +1235,7 @@ if (typeof document !== "undefined") {
     document.getElementById("importInput").onchange = (e) => importData(e);
     document.getElementById("avoidedBtn").onclick = () => renderAvoided();
     document.getElementById("progressBtn").onclick = () => renderProgress();
+    document.getElementById("savedBtn").onclick = () => renderSaved();
     document.getElementById("loadSharedBtn").onclick = () => promptLoadShared();
   }
 
@@ -1318,6 +1323,7 @@ if (typeof document !== "undefined") {
   function renderSession() {
     const el = document.getElementById("session");
     if (!CURRENT) { el.innerHTML = ""; return; }
+    STATE.current = CURRENT; saveState(); // auto-save so it survives reopening the app
     const pathStr = CURRENT.zonePath.map((z) => `${z}·${DATA.gym.zones[z].name}`).join("  →  ");
     const crowd = DATA.gym.crowd;
     const busy = crowd && isBusyDay(["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][new Date(todayStr() + "T00:00:00").getDay()], crowd);
@@ -1328,7 +1334,7 @@ if (typeof document !== "undefined") {
       `<div class="workload wl-${wl.level}">Volume: <b>${wl.sets} working sets</b> — ${wl.label}</div>` +
       `<div class="stoolbar">` +
       `<button id="addAcc">+ Accessory</button><button id="addFin">+ Finisher</button>` +
-      `<button id="shareBtn">Share</button>${UNDO.length ? `<button id="undoBtn">↶ Undo</button>` : ""}` +
+      `<button id="saveBtn">Save</button><button id="shareBtn">Share</button>${UNDO.length ? `<button id="undoBtn">↶ Undo</button>` : ""}` +
       `</div></div>`;
     CURRENT.blocks.forEach((bk, bi) => {
       const zoneTag = bk.zone ? `<span class="zone">Zone ${bk.zone} — ${bk.zoneName}</span>` : `<span class="zone">moves span zones</span>`;
@@ -1367,6 +1373,7 @@ if (typeof document !== "undefined") {
     const byId = (id) => document.getElementById(id);
     byId("addAcc").onclick = () => addExercise("accessory");
     byId("addFin").onclick = () => addExercise("finisher");
+    byId("saveBtn").onclick = () => saveWorkout();
     byId("shareBtn").onclick = () => shareSession();
     if (byId("undoBtn")) byId("undoBtn").onclick = () => undoLast();
     document.getElementById("logBtn").disabled = false;
@@ -1489,6 +1496,35 @@ if (typeof document !== "undefined") {
     const v = prompt("Paste the shared workout link or code:");
     if (!v) return;
     try { loadShared(v); } catch (e) { alert("Couldn't read that share — check you copied the whole link/code."); }
+  }
+
+  // --- Saved workouts (named, kept on the device) ---------------------------------------------
+  function saveWorkout() {
+    if (!CURRENT) return;
+    const def = `${CURRENT.focus} — ${todayStr()}`;
+    const name = (prompt("Save this workout as:", def) || "").trim();
+    if (!name) return;
+    STATE.saved = STATE.saved || [];
+    STATE.saved.unshift({ name, date: todayStr(), code: encodeSession(CURRENT) });
+    saveState();
+    alert(`Saved "${name}".`);
+  }
+  function renderSaved() {
+    const el = document.getElementById("session");
+    const list = STATE.saved || [];
+    if (!list.length) { el.innerHTML = `<div class="card"><h2>Saved workouts</h2><p>No saved workouts yet. Generate one, tweak it, and tap <b>Save</b>.</p></div>`; return; }
+    el.innerHTML = `<div class="card"><h2>Saved workouts</h2>` +
+      list.map((w, i) => `<div class="move"><div class="mname">${w.name}</div><div class="mpresc">${w.date}</div>` +
+        `<div class="mactions"><button class="loadSaved" data-i="${i}">Load</button><button class="delSaved rm" data-i="${i}">Delete</button></div></div>`).join("") +
+      `<div class="footer"><button id="savedBack">Back</button></div></div>`;
+    el.querySelectorAll(".loadSaved").forEach((b) => b.onclick = () => {
+      try { loadShared(STATE.saved[+b.dataset.i].code); } catch (e) { alert("Couldn't load that workout."); }
+    });
+    el.querySelectorAll(".delSaved").forEach((b) => b.onclick = () => {
+      const i = +b.dataset.i;
+      if (confirm(`Delete "${STATE.saved[i].name}"?`)) { STATE.saved.splice(i, 1); saveState(); renderSaved(); }
+    });
+    document.getElementById("savedBack").onclick = () => renderSession();
   }
 
   function swapMove(bi, ii) {
@@ -1739,6 +1775,8 @@ if (typeof document !== "undefined") {
       STATE.program.logged = (STATE.program.logged || 0) + 1;
       advanced = ` Up next: ${nextProgramDay(STATE.program, STATE.history, todayStr())}.`;
     }
+    CURRENT = null;
+    STATE.current = null; // logged — clear the auto-saved session so reopening shows your next day
     saveState();
     renderProgram();
     renderWeek();
