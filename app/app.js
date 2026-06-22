@@ -1163,7 +1163,7 @@ if (typeof module !== "undefined" && module.exports) {
 // ============================================================================
 if (typeof document !== "undefined") {
   const STORE_KEY = "wgen.state.v1";
-  const APP_VERSION = "v20"; // keep in sync with CACHE in service-worker.js; bump on each deploy
+  const APP_VERSION = "v21"; // keep in sync with CACHE in service-worker.js; bump on each deploy
   let DATA = { movements: [], gym: {} };
   let STATE = loadState();
   let CURRENT = null; // current generated session
@@ -1200,12 +1200,15 @@ if (typeof document !== "undefined") {
     wireButtons();
     renderVersion(false);
     // If opened from a shared link, load that workout; otherwise restore the last one you had open.
-    if (location.hash && location.hash.indexOf("#w=") === 0) {
-      try { loadShared(location.hash); history.replaceState(null, "", location.pathname + location.search); } catch (e) {}
+    const sharedCode = readSharedCode();
+    if (sharedCode) {
+      tryLoadShared(sharedCode);
     } else if (STATE.current) {
       CURRENT = STATE.current;
       renderSession();
     }
+    // Handle a shared link tapped while the app is already open.
+    window.addEventListener("hashchange", () => { const c = readSharedCode(); if (c) tryLoadShared(c); });
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("service-worker.js").then((reg) => {
         // When a newer deploy is installed, tell the user this screen is now stale.
@@ -1495,7 +1498,26 @@ if (typeof document !== "undefined") {
   function promptLoadShared() {
     const v = prompt("Paste the shared workout link or code:");
     if (!v) return;
-    try { loadShared(v); } catch (e) { alert("Couldn't read that share — check you copied the whole link/code."); }
+    try { loadShared(v); document.getElementById("session").scrollIntoView({ behavior: "smooth" }); }
+    catch (e) { alert("Couldn't read that share — check you copied the whole link/code."); }
+  }
+
+  // Read a shared workout code from the URL (hash like #w=..., or anywhere in the href as a fallback).
+  function readSharedCode() {
+    if ((location.hash || "").indexOf("#w=") === 0) return location.hash;
+    const j = location.href.indexOf("#w=");
+    return j >= 0 ? location.href.slice(j) : null;
+  }
+  // Load from a URL code, with feedback: scroll to the loaded workout, or explain if it failed.
+  function tryLoadShared(code) {
+    try {
+      loadShared(code);
+      history.replaceState(null, "", location.pathname + location.search);
+      const s = document.getElementById("session");
+      if (s) s.scrollIntoView({ behavior: "smooth" });
+    } catch (e) {
+      alert("Couldn't open the shared workout from this link — it may have been shortened or cut off in transit. On the sending device, open Share, copy the full code, then tap 'Load shared' here and paste it.");
+    }
   }
 
   // --- Saved workouts (named, kept on the device) ---------------------------------------------
