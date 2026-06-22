@@ -593,5 +593,11 @@ ok("decode drops unknown movement ids gracefully", (() => {
 })());
 ok("share omits loads (weights stay personal)", decoded.blocks.every(b => b.items.every(i => i.load === undefined)));
 
+console.log("\n== Dumbbells available in Zone B (except bench moves) ==");
+const dbMoves = movements.filter(m => m.implement === "dumbbell");
+ok("dumbbell moves can be done in Zone B", dbMoves.filter(m => (m.zones || []).includes("B")).length === dbMoves.length - 3);
+ok("bench-requiring DB moves stay out of Zone B", ["db-bench", "db-incline-bench", "db-fly"].every(id => !(movements.find(m => m.id === id).zones || []).includes("B")));
+ok("nothing is named 'Echo' anymore", movements.every(m => !/Echo/i.test(m.name)));
+
 console.log(`\n==== ${pass} passed, ${fail} failed ====`);
 process.exit(fail ? 1 : 0);

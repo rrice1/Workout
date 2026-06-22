@@ -2,7 +2,7 @@
   "_comment": "Gym layout + equipment inventory. zones is a line graph A-B-C-D-E; the generator keeps supersets within same/adjacent zones and prefers to walk the line without backtracking. inventory ladders drive the load rounder. All editable from the app Settings screen.",
   "zones": {
     "A": { "name": "DB & bench end", "has": ["dumbbells", "free benches", "bench press", "Smith machine", "leg press"], "adjacent": ["B"], "order": 0 },
-    "B": { "name": "Barbell / rig", "has": ["barbell racks", "rigs", "bands (assisted pull-ups)", "kettlebells", "med balls", "boxes", "rowers", "curved treadmills", "assault bikes"], "adjacent": ["A", "C"], "order": 1 },
+    "B": { "name": "Barbell / rig", "has": ["barbell racks", "rigs", "bands (assisted pull-ups)", "dumbbells", "kettlebells", "med balls", "boxes", "rowers", "curved treadmills", "assault bikes"], "adjacent": ["A", "C"], "order": 1 },
     "C": { "name": "Machines", "has": ["selectorized machines", "plate-loaded machines"], "adjacent": ["B", "D"], "order": 2 },
     "D": { "name": "Cardio", "has": ["treadmills (flat + curved)", "assault bikes", "stairmasters", "rowers", "ski ergs"], "adjacent": ["C", "E"], "order": 3 },
     "E": { "name": "Open functional", "has": ["mats", "dumbbells", "kettlebells", "med balls", "bosu balls", "boxes", "jump ropes", "ab rollers", "open floor for carries"], "adjacent": ["D"], "order": 4 }
