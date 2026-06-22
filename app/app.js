@@ -1104,6 +1104,7 @@ if (typeof module !== "undefined" && module.exports) {
 // ============================================================================
 if (typeof document !== "undefined") {
   const STORE_KEY = "wgen.state.v1";
+  const APP_VERSION = "v17"; // keep in sync with CACHE in service-worker.js; bump on each deploy
   let DATA = { movements: [], gym: {} };
   let STATE = loadState();
   let CURRENT = null; // current generated session
@@ -1136,7 +1137,27 @@ if (typeof document !== "undefined") {
     renderWeek();
     renderFocusPicker();
     wireButtons();
-    if ("serviceWorker" in navigator) navigator.serviceWorker.register("service-worker.js").catch(() => {});
+    renderVersion(false);
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("service-worker.js").then((reg) => {
+        // When a newer deploy is installed, tell the user this screen is now stale.
+        reg.addEventListener("updatefound", () => {
+          const nw = reg.installing;
+          if (nw) nw.addEventListener("statechange", () => {
+            if (nw.state === "installed" && navigator.serviceWorker.controller) renderVersion(true);
+          });
+        });
+      }).catch(() => {});
+    }
+  }
+
+  // Version stamp at the bottom of the screen so you can tell if this is the latest deploy.
+  function renderVersion(updateReady) {
+    const el = document.getElementById("version");
+    if (!el) return;
+    el.textContent = updateReady ? `${APP_VERSION} · update ready — tap to refresh` : APP_VERSION;
+    el.classList.toggle("update", !!updateReady);
+    el.onclick = updateReady ? () => location.reload() : null;
   }
 
   function wireButtons() {
