@@ -519,5 +519,53 @@ for (let seed = 1; seed <= 40; seed++) {
 }
 ok("no lower-body mobility in a Push warm-up", !lowerOnPush);
 
+console.log("\n== Busy-day crowd avoidance ==");
+const crowd = gym.crowd;
+ok("crowd model present (busyDays + crowdedZones)", crowd && crowd.busyDays.length > 0 && crowd.crowdedZones.length > 0);
+ok("isBusyDay: Mon busy, Thu not", G.isBusyDay("Mon", crowd) && !G.isBusyDay("Thu", crowd));
+ok("stuckInCrowd: bench (A-only) yes, db-shoulder-press (A,E) no, squat (B) no",
+  G.stuckInCrowd(movements.find(m => m.id === "bench-press-bb"), crowd) &&
+  !G.stuckInCrowd(movements.find(m => m.id === "db-shoulder-press"), crowd) &&
+  !G.stuckInCrowd(movements.find(m => m.id === "back-squat-bb"), crowd));
+ok("crowdPenalty only applies on busy days", G.crowdPenalty(movements.find(m => m.id === "bench-press-bb"), true, crowd) > 0 && G.crowdPenalty(movements.find(m => m.id === "bench-press-bb"), false, crowd) === 0);
+// Behavior: on a busy weekday the Push main avoids Zone-A-only lifts (bench/DB), preferring the
+// rig overhead press (B) or machine press (C). On a quiet day the bench is free to appear.
+const MON = "2026-06-15", THU = "2026-06-18"; // 06-14 is Sunday
+let busyCrowdedMain = 0, quietCrowdedMain = 0;
+for (let seed = 1; seed <= 40; seed++) {
+  const mon = G.buildProgramSession(DATA, { today: MON, history: [], maxes: {}, settings: {}, day: "Push Strength", seed, macroBlock: "hypertrophy_base", mesoWeek: 1 });
+  if (G.stuckInCrowd(mon.blocks.find(b => b.role === "strength1").items[0].movement, crowd)) busyCrowdedMain++;
+  const thu = G.buildProgramSession(DATA, { today: THU, history: [], maxes: {}, settings: {}, day: "Push Strength", seed, macroBlock: "hypertrophy_base", mesoWeek: 1 });
+  if (G.stuckInCrowd(thu.blocks.find(b => b.role === "strength1").items[0].movement, crowd)) quietCrowdedMain++;
+}
+ok("busy-day Push main avoids the crowded bench/DB zone", busyCrowdedMain === 0, `${busyCrowdedMain}/40`);
+ok("quiet-day Push main still uses the bench sometimes", quietCrowdedMain > 0, `${quietCrowdedMain}/40`);
+
+console.log("\n== No similar body parts two days in a row (smart next-day) ==");
+ok("day regions: Push=push, Conditioning/Pump=empty",
+  G.dayMuscleRegions(G.PROGRAM_DAYS["Push Strength"]).has("push") &&
+  G.dayMuscleRegions(G.PROGRAM_DAYS["Conditioning + Core"]).size === 0 &&
+  G.dayMuscleRegions(G.PROGRAM_DAYS["Pump / Recovery"]).size === 0);
+// A logged session's blocking regions come from heavy/med work only (pump/light doesn't block).
+const yPush = { date: "2026-06-14", items: [{ pattern: "h-push", intensity: "heavy", muscles: ["chest"] }] };
+const yLower = { date: "2026-06-14", items: [{ pattern: "squat", intensity: "heavy", muscles: ["quads"] }] };
+const yPump = { date: "2026-06-14", items: [{ pattern: "triceps", intensity: "light", muscles: ["triceps"] }, { pattern: "side-delts", intensity: "light", muscles: ["delts"] }] };
+ok("session regions from heavy/med work", G.sessionMuscleRegions(yPush).has("push") && G.sessionMuscleRegions(yPump).size === 0);
+const T = "2026-06-15"; // day after 06-14
+// Positional next after a fresh program is Push; if Push was trained yesterday, skip to Lower.
+ok("Push yesterday -> next skips Push to Lower Squat",
+  G.nextProgramDay({ daysPerWeek: 6, logged: 0 }, [yPush], T) === "Lower Strength — Squat");
+// Upper Hypertrophy (push+pull) is also skipped after a push day.
+ok("Push yesterday -> Upper Hypertrophy positional is skipped",
+  G.nextProgramDay({ daysPerWeek: 6, logged: 4 }, [yPush], T) !== "Upper Hypertrophy");
+// No overlap -> sequence is unchanged (Lower yesterday, positional Push stays Push).
+ok("Lower yesterday -> next stays Push", G.nextProgramDay({ daysPerWeek: 6, logged: 0 }, [yLower], T) === "Push Strength");
+// A light Pump day doesn't block the next day.
+ok("Pump yesterday doesn't block Push", G.nextProgramDay({ daysPerWeek: 6, logged: 0 }, [yPump], T) === "Push Strength");
+// Guard only applies to a recent session (yesterday/today), not an old one.
+ok("old session (3 days ago) doesn't reorder", G.nextProgramDay({ daysPerWeek: 6, logged: 0 }, [{ date: "2026-06-12", items: yPush.items }], T) === "Push Strength");
+// Back-compat: called without history/today, behaves positionally.
+ok("no-history call is positional", G.nextProgramDay({ daysPerWeek: 6, logged: 0 }) === "Push Strength");
+
 console.log(`\n==== ${pass} passed, ${fail} failed ====`);
 process.exit(fail ? 1 : 0);

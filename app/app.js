@@ -33,6 +33,20 @@ const PATTERN_REGION = {
 const TIER_BONUS = { core: 1.0, secondary: 0 };
 function tierBonus(m) { return TIER_BONUS[m.tier] != null ? TIER_BONUS[m.tier] : 0; }
 
+// Crowd avoidance: on busy weekdays, steer away from movements that can ONLY be done in a
+// crowded zone (the bench/DB end). A movement with an alternative zone isn't penalized — you
+// just do it in the open spot. The penalty is large enough to effectively exclude crowded-only
+// movements whenever an alternative exists (bench → rig overhead press or machine press), while
+// pickWeighted's floor still lets one through if EVERY candidate is crowded-only.
+const CROWD_PENALTY = 5;
+function isBusyDay(dow, crowd) { return !!(crowd && crowd.busyDays && crowd.busyDays.includes(dow)); }
+function stuckInCrowd(m, crowd) {
+  const cz = (crowd && crowd.crowdedZones) || [];
+  const zs = m.zones || [];
+  return zs.length > 0 && zs.every((z) => cz.includes(z));
+}
+function crowdPenalty(m, busyToday, crowd) { return busyToday && stuckInCrowd(m, crowd) ? CROWD_PENALTY : 0; }
+
 // Which body regions a focus's session will train (so the warm-up can target them).
 function computeTargetRegions(cfg) {
   const pats = [].concat(cfg.s1 || [], cfg.s2a || [], cfg.s2b || [], cfg.metconOnly ? cfg.metcon : []);
@@ -497,6 +511,9 @@ function buildSession(data, opts) {
   const { patternFatigue, muscleFatigue } = computeFatigue(history, today);
   const bias = balanceBias(history, today);
   const pool = filterCandidates(movements, { today, history, avoidList: opts.avoidList || [] });
+  // On busy weekdays, bias away from movements stuck in a crowded zone (the bench/DB end).
+  const busyToday = isBusyDay(DOW[new Date(today + "T00:00:00").getDay()], gym.crowd);
+  const sbf = (m, biasFn) => scoreByFreshness(m, patternFatigue, biasFn) - crowdPenalty(m, busyToday, gym.crowd);
 
   const blocks = [];
   const usedMuscles = new Set();
@@ -530,7 +547,7 @@ function buildSession(data, opts) {
     let s1cands = candidatesFor(pool, { patterns: cfg.s1, role: "strength1", loadable: true }).filter((m) => !usedIds.has(m.id));
     if (!s1cands.length) s1cands = candidatesFor(pool, { patterns: cfg.s1, role: "strength1" }).filter((m) => !usedIds.has(m.id));
     if (!s1cands.length) s1cands = candidatesFor(pool, { patterns: cfg.s1, role: "strength1" });
-    const s1 = pickWeighted(s1cands, (m) => scoreByFreshness(m, patternFatigue, (mm) => {
+    const s1 = pickWeighted(s1cands, (m) => sbf(m, (mm) => {
       let b = 0;
       if (mm.pattern === "squat") b += bias.squatBias * 0.2;
       if (mm.pattern === "hinge") b += bias.hingeBias * 0.2;
@@ -569,7 +586,7 @@ function buildSession(data, opts) {
         // reads honestly (e.g. machine + machine in C, or banded pull-up + lift in B)
         // instead of straddling two zones.
         const zoneBonus = dist === 0 ? 0.8 : 0;
-        pairs.push({ a: ca, b: cb, score: scoreByFreshness(ca, patternFatigue, pushPullBias) + scoreByFreshness(cb, patternFatigue) + zoneBonus });
+        pairs.push({ a: ca, b: cb, score: sbf(ca, pushPullBias) + sbf(cb) + zoneBonus });
       }
     }
     if (pairs.length) {
@@ -577,7 +594,7 @@ function buildSession(data, opts) {
       a = chosen.a; b = chosen.b;
     } else if (aCands.length) {
       // No zone-compatible partner — run the accessory solo rather than make them walk.
-      a = pickWeighted(aCands, (m) => scoreByFreshness(m, patternFatigue, pushPullBias), rng);
+      a = pickWeighted(aCands, (m) => sbf(m, pushPullBias), rng);
     }
     const s2items = [];
     if (a) { s2items.push({ movement: a, prescription: "4×8 @ RPE 8", load: loadSuggestion(a, 8, maxes, settings, inv, progress) }); note(a.id); (a.muscles || []).forEach((m) => usedMuscles.add(m)); }
@@ -600,13 +617,13 @@ function buildSession(data, opts) {
   // Always include one cardio modality (prefer one not used in the warm-up).
   if (cardioCands.length) {
     const freshCardio = cardioCands.filter((m) => !usedIds.has(m.id));
-    const c = pickWeighted(freshCardio.length ? freshCardio : cardioCands, (m) => scoreByFreshness(m, patternFatigue), rng);
+    const c = pickWeighted(freshCardio.length ? freshCardio : cardioCands, (m) => sbf(m), rng);
     metItems.push({ movement: c, prescription: prescribe(c, "metcon", rng) }); note(c.id);
   }
   const used = new Set(metItems.map((i) => i.movement.id));
   let pickPool = moveCands.filter((m) => !used.has(m.id));
   for (let i = metItems.length; i < metconN && pickPool.length; i++) {
-    const m = pickWeighted(pickPool, (mm) => scoreByFreshness(mm, patternFatigue, muscleAvoid) + 0.3, rng);
+    const m = pickWeighted(pickPool, (mm) => sbf(mm, muscleAvoid) + 0.3, rng);
     metItems.push({ movement: m, prescription: prescribe(m, "metcon", rng) });
     used.add(m.id);
     pickPool = pickPool.filter((x) => x.id !== m.id);
@@ -660,7 +677,46 @@ const PROGRAM_SEQUENCE = [
   "Pump / Recovery",
 ];
 function programSequence(daysPerWeek) { return PROGRAM_SEQUENCE.slice(0, daysPerWeek === 7 ? 7 : 6); }
-function nextProgramDay(prog) { const seq = programSequence(prog.daysPerWeek); return seq[(prog.logged || 0) % seq.length]; }
+
+// Major muscle regions used for the "don't train the same body parts two days running" guard.
+const MUSCLE_REGIONS = new Set(["push", "pull", "lower"]);
+// Regions a program day emphasizes (empty for conditioning/recovery days — light enough to
+// follow anything).
+function dayMuscleRegions(cfg) {
+  if (!cfg || cfg.category === "recovery" || cfg.category === "conditioning") return new Set();
+  return new Set((cfg.primary || []).map((p) => PATTERN_REGION[p]).filter((r) => MUSCLE_REGIONS.has(r)));
+}
+// Regions a logged session actually worked hard (heavy/med items only — pump/accessory/cardio
+// don't block the next day).
+function sessionMuscleRegions(session) {
+  const set = new Set();
+  for (const it of (session && session.items) || []) {
+    if (it.intensity !== "heavy" && it.intensity !== "med") continue;
+    const r = PATTERN_REGION[it.pattern];
+    if (MUSCLE_REGIONS.has(r)) set.add(r);
+  }
+  return set;
+}
+function regionsOverlap(a, b) { for (const r of a) if (b.has(r)) return true; return false; }
+
+// Next program day. If you trained yesterday/today, skip ahead to the next day in the sequence
+// that doesn't repeat that session's major region (so no similar body parts two days running).
+function nextProgramDay(prog, history, today) {
+  const seq = programSequence(prog.daysPerWeek);
+  const start = (prog.logged || 0) % seq.length;
+  const last = history && history[0];
+  const recent = last && today != null && daysBetween(last.date, today) <= 1;
+  if (recent) {
+    const lastRegions = sessionMuscleRegions(last);
+    if (lastRegions.size) {
+      for (let i = 0; i < seq.length; i++) {
+        const day = seq[(start + i) % seq.length];
+        if (!regionsOverlap(dayMuscleRegions(PROGRAM_DAYS[day]), lastRegions)) return day;
+      }
+    }
+  }
+  return seq[start]; // no recent session, or every day overlaps → keep the sequence order
+}
 function dayNumber(prog) { const seq = programSequence(prog.daysPerWeek); return ((prog.logged || 0) % seq.length) + 1; }
 function mesocycleWeek(prog) { const seq = programSequence(prog.daysPerWeek); return (Math.floor((prog.logged || 0) / seq.length) % 4) + 1; }
 
@@ -769,6 +825,7 @@ function buildProgramSession(data, opts) {
   const progress = opts.progress || {};
   const inv = gym.inventory;
   const rng = makeRng(opts.seed || 1);
+  const busyToday = isBusyDay(DOW[new Date(today + "T00:00:00").getDay()], gym.crowd);
   const cfg = PROGRAM_DAYS[opts.day];
   if (!cfg) throw new Error("Unknown program day: " + opts.day);
 
@@ -806,6 +863,7 @@ function buildProgramSession(data, opts) {
   function score(m) {
     let s = freshness(m.pattern, patternFatigue);
     s += tierBonus(m); // prefer core staples over secondary variations
+    s -= crowdPenalty(m, busyToday, gym.crowd); // on busy days, avoid crowded-only zones
     if (m.pattern === "h-push" || m.pattern === "v-push") s += bias.pushBias * 0.15;
     if (m.pattern === "h-pull" || m.pattern === "v-pull") s += bias.pullBias * 0.15;
     if (m.pattern === "squat") s += bias.squatBias * 0.15;
@@ -1031,9 +1089,10 @@ if (typeof module !== "undefined" && module.exports) {
     pickFocus, buildSession, buildProgramSession, roundLoad, nearestBarbell, nearestInLadder,
     loadSuggestion, swapCandidates, sessionToHistoryEntry, pctForReps, progressDir,
     trackingType, parseTargetSeconds, repeatableLoad, summarizePerf, holdSuggestion, summarizeMovementLogs,
-    tierBonus, PATTERN_REGION,
+    tierBonus, PATTERN_REGION, isBusyDay, stuckInCrowd, crowdPenalty,
     pairZoneDistance, prescribe, computeTargetRegions, FOCUSES, PROGRAM_DAYS,
     PROGRAM_SEQUENCE, programSequence, nextProgramDay, dayNumber, mesocycleWeek, MESO,
+    dayMuscleRegions, sessionMuscleRegions,
     macrocycleWeek, macroBlockIndex, macroBlockKey, BLOCK_KEYS, BLOCK_NAMES, MACRO_BLOCKS, slotScheme,
     isTestWeek, estimate1RM, TEST_MAIN_SCHEME,
     weeklySets, parseSets, VOLUME_TARGETS,
@@ -1104,7 +1163,9 @@ if (typeof document !== "undefined") {
   function renderProgram() {
     const el = document.getElementById("program");
     const prog = STATE.program;
-    const day = nextProgramDay(prog);
+    const day = nextProgramDay(prog, STATE.history, todayStr());
+    const seqDay = programSequence(prog.daysPerWeek)[(prog.logged || 0) % programSequence(prog.daysPerWeek).length];
+    const skipped = day !== seqDay; // reordered to avoid repeating yesterday's body parts
     const wk = mesocycleWeek(prog);
     const seqLen = programSequence(prog.daysPerWeek).length;
     const meso = MESO[wk];
@@ -1118,7 +1179,7 @@ if (typeof document !== "undefined") {
       `<p><b>Block ${blockIdx + 1}/3:</b> ${blockName}</p>` +
       `<p>Meso Week ${wk}/4 (${meso.name}${meso.deload ? " — take it easy" : ""}) · Day ${dayNumber(prog)} of ${seqLen}</p>` +
       (testWk ? `<p class="testnote">🏋 <b>Test week:</b> optional clean <b>3RM</b> on strength-day main lifts (not a true max). Logging it updates your estimated 1RM. Everything else stays deload.</p>` : "") +
-      `<p><b>Next:</b> ${day}</p>` +
+      `<p><b>Next:</b> ${day}${skipped ? ` <span class="last">(moved up — ${seqDay} repeats yesterday's body parts)</span>` : ""}</p>` +
       `<button id="nextBtn" class="primary">Generate Next Workout</button>` +
       `<div class="dpw">Training days/week: ` +
       `<button class="dpwbtn ${prog.daysPerWeek === 6 ? "on" : ""}" data-d="6">6</button>` +
@@ -1172,7 +1233,10 @@ if (typeof document !== "undefined") {
     const el = document.getElementById("session");
     if (!CURRENT) { el.innerHTML = ""; return; }
     const pathStr = CURRENT.zonePath.map((z) => `${z}·${DATA.gym.zones[z].name}`).join("  →  ");
-    let html = `<div class="sesshead"><h2>${CURRENT.focus}</h2><div class="path">Path: ${pathStr}</div></div>`;
+    const crowd = DATA.gym.crowd;
+    const busy = crowd && isBusyDay(["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][new Date(todayStr() + "T00:00:00").getDay()], crowd);
+    const busyNote = busy ? `<div class="testnote">🚦 Busy day — steering away from the crowded ${(crowd.crowdedZones || []).map((z) => `Zone ${z}`).join("/")} (bench/DB end) toward the rigs &amp; machines.</div>` : "";
+    let html = `<div class="sesshead"><h2>${CURRENT.focus}</h2><div class="path">Path: ${pathStr}</div>${busyNote}</div>`;
     CURRENT.blocks.forEach((bk, bi) => {
       const zoneTag = bk.zone ? `<span class="zone">Zone ${bk.zone} — ${bk.zoneName}</span>` : `<span class="zone">moves span zones</span>`;
       html += `<div class="block"><div class="bhead"><h3>${bk.name}</h3><span class="time">${bk.time || ""}</span></div>`;
@@ -1455,7 +1519,7 @@ if (typeof document !== "undefined") {
     if (CURRENT.mode === "program") {
       STATE.program = STATE.program || { daysPerWeek: 6, logged: 0 };
       STATE.program.logged = (STATE.program.logged || 0) + 1;
-      advanced = ` Up next: ${nextProgramDay(STATE.program)}.`;
+      advanced = ` Up next: ${nextProgramDay(STATE.program, STATE.history, todayStr())}.`;
     }
     saveState();
     renderProgram();

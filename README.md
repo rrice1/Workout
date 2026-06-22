@@ -49,7 +49,11 @@ No App Store, no build, no signing, no expiry. To update later, edit the files a
   sequence advances **only when you log a program session** (skipping a calendar day doesn't
   skip a workout; freestyle sessions don't advance it). It runs a **4-week wave**: weeks 1–3
   ramp up, week 4 is an automatic **deload** (lighter loads, fewer sets). Toggle **6 vs 7
-  training days** (the 7th is an easy Pump / Recovery day, never required).
+  training days** (the 7th is an easy Pump / Recovery day, never required). If you trained
+  yesterday, the **next workout skips ahead** to a day that doesn't repeat the same major body
+  region (push/pull/lower) — e.g. it won't serve Upper Hypertrophy right after a Push day — so you
+  don't hit similar body parts two days running. (Conditioning and Pump/Recovery are light enough
+  to follow anything.)
 - Those 4-week waves sit inside a **12-week macrocycle** of three blocks that change the
   *feel* without changing the split: **Hypertrophy Base** (wk 1–4, mostly 8s), **Strength-Biased
   Hypertrophy** (wk 5–8, mains drop to 5s/4s/3s), then **Fitness / Performance** (wk 9–12,
@@ -105,6 +109,12 @@ No App Store, no build, no signing, no expiry. To update later, edit the files a
 Everything gym-specific is in `app/gym.json`:
 - **zones** — your floor layout (A–E) and which zones are adjacent, so supersets stay close.
 - **inventory** — the dumbbell / plate / kettlebell / barbell ladders the load rounder uses.
+- **crowd** — `busyDays` (e.g. Mon/Tue/Wed) and `crowdedZones` (e.g. the bench/DB end, Zone A).
+  On a busy weekday the generator reads today's date and steers away from movements that can
+  *only* be done in a crowded zone — a bench day becomes a rig overhead press (Zone B) or machine
+  press (Zone C) instead of waiting for a bench. A movement that has an alternative zone isn't
+  penalized (you just do it in the open spot), and if every option is crowded it still picks one.
+  The session card shows a 🚦 note on busy days.
 
 Movement tags (pattern, equipment, which zone, day/space limits) live in `app/movements.json`.
 For example, a space-heavy move can be capped to certain days and a max frequency via
