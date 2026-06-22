@@ -1104,7 +1104,7 @@ if (typeof module !== "undefined" && module.exports) {
 // ============================================================================
 if (typeof document !== "undefined") {
   const STORE_KEY = "wgen.state.v1";
-  const APP_VERSION = "v17"; // keep in sync with CACHE in service-worker.js; bump on each deploy
+  const APP_VERSION = "v18"; // keep in sync with CACHE in service-worker.js; bump on each deploy
   let DATA = { movements: [], gym: {} };
   let STATE = loadState();
   let CURRENT = null; // current generated session
@@ -1256,7 +1256,7 @@ if (typeof document !== "undefined") {
     const pathStr = CURRENT.zonePath.map((z) => `${z}·${DATA.gym.zones[z].name}`).join("  →  ");
     const crowd = DATA.gym.crowd;
     const busy = crowd && isBusyDay(["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][new Date(todayStr() + "T00:00:00").getDay()], crowd);
-    const busyNote = busy ? `<div class="testnote">🚦 Busy day — steering away from the crowded ${(crowd.crowdedZones || []).map((z) => `Zone ${z}`).join("/")} (bench/DB end) toward the rigs &amp; machines.</div>` : "";
+    const busyNote = busy ? `<div class="testnote">🚦 Busy day — steering away from the crowded ${(crowd.crowdedZones || []).map((z) => `Zone ${z}`).join("/")} (bench/DB &amp; machines) toward the rigs, open floor &amp; cardio.</div>` : "";
     let html = `<div class="sesshead"><h2>${CURRENT.focus}</h2><div class="path">Path: ${pathStr}</div>${busyNote}</div>`;
     CURRENT.blocks.forEach((bk, bi) => {
       const zoneTag = bk.zone ? `<span class="zone">Zone ${bk.zone} — ${bk.zoneName}</span>` : `<span class="zone">moves span zones</span>`;

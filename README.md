@@ -109,12 +109,13 @@ No App Store, no build, no signing, no expiry. To update later, edit the files a
 Everything gym-specific is in `app/gym.json`:
 - **zones** — your floor layout (A–E) and which zones are adjacent, so supersets stay close.
 - **inventory** — the dumbbell / plate / kettlebell / barbell ladders the load rounder uses.
-- **crowd** — `busyDays` (e.g. Mon/Tue/Wed) and `crowdedZones` (e.g. the bench/DB end, Zone A).
-  On a busy weekday the generator reads today's date and steers away from movements that can
-  *only* be done in a crowded zone — a bench day becomes a rig overhead press (Zone B) or machine
-  press (Zone C) instead of waiting for a bench. A movement that has an alternative zone isn't
-  penalized (you just do it in the open spot), and if every option is crowded it still picks one.
-  The session card shows a 🚦 note on busy days.
+- **crowd** — `busyDays` (e.g. Mon/Tue/Wed) and `crowdedZones` (the bench/DB end **A** and the
+  machines **C**). On a busy weekday the generator reads today's date and steers away from
+  movements that can *only* be done in a crowded zone, toward the rigs (**B**), open floor (**E**),
+  and cardio (**D**) — e.g. a bench day becomes a barbell overhead press or pull-ups on the rig,
+  or dumbbell work in the open area, instead of waiting for a bench or machine. A movement that has
+  an alternative zone isn't penalized (you just do it in the open spot), and if every option is
+  crowded it still picks one. The session card shows a 🚦 note on busy days.
 
 Movement tags (pattern, equipment, which zone, day/space limits) live in `app/movements.json`.
 For example, a space-heavy move can be capped to certain days and a max frequency via

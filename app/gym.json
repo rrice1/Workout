@@ -8,9 +8,9 @@
     "E": { "name": "Open functional", "has": ["mats", "dumbbells", "kettlebells", "med balls", "bosu balls", "boxes", "jump ropes", "ab rollers", "open floor for carries"], "adjacent": ["D"], "order": 4 }
   },
   "crowd": {
-    "_note": "On busy weekdays the generator steers away from movements that can ONLY be done in a crowded zone (e.g. the bench/DB end), preferring the rigs, machines, and cardio that stay open. A movement with an alternative zone isn't penalized — you just do it in the open spot.",
+    "_note": "On busy weekdays the generator steers away from movements that can ONLY be done in a crowded zone (the bench/DB end A and the machines C), preferring the rigs (B), open floor (E), and cardio (D) that stay open. A movement with an alternative zone isn't penalized — you just do it in the open spot.",
     "busyDays": ["Mon", "Tue", "Wed"],
-    "crowdedZones": ["A"]
+    "crowdedZones": ["A", "C"]
   },
   "inventory": {
     "_note": "Weights in lb unless marked kg. The rounder snaps suggestions to the nearest achievable value per implement.",
