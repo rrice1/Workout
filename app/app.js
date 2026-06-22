@@ -472,6 +472,64 @@ function summarizeMovementLogs(entries) {
 }
 
 // ----------------------------------------------------------------------------
+// Session workload + sharing (see Discussion: add/remove + share)
+// ----------------------------------------------------------------------------
+
+// Total working sets across the session (warm-ups, cardio, holds parse to 0). Used for the
+// "are you piling on too much?" meter. Thresholds are deliberately soft.
+function sessionWorkload(session) {
+  let sets = 0;
+  for (const bk of (session && session.blocks) || []) for (const it of bk.items || []) sets += parseSets(it.prescription);
+  let level = "ok", label = "solid volume";
+  if (sets > 30) { level = "over"; label = "very high — consider trimming"; }
+  else if (sets > 24) { level = "high"; label = "high — that's a lot"; }
+  return { sets, level, label };
+}
+
+// URL-safe base64 that works in the browser and in Node (tests). Handles unicode (×, –, etc.).
+function b64urlEncode(s) {
+  const b = (typeof btoa === "function") ? btoa(unescape(encodeURIComponent(s))) : Buffer.from(s, "utf8").toString("base64");
+  return b.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function b64urlDecode(s) {
+  s = s.replace(/-/g, "+").replace(/_/g, "/");
+  return (typeof atob === "function") ? decodeURIComponent(escape(atob(s))) : Buffer.from(s, "base64").toString("utf8");
+}
+
+// Encode just the PLAN (movements + prescriptions + structure) into a shareable string. Loads are
+// left out on purpose — each person recomputes their own weights when they open it. Prescriptions
+// (which repeat a lot) are dictionary-encoded to keep the code short. Movement ids (not indices)
+// are used so a share still resolves if the two devices' libraries differ slightly.
+function encodeSession(session) {
+  const pres = [], pidx = new Map();
+  const pi = (p) => { p = p || ""; if (!pidx.has(p)) { pidx.set(p, pres.length); pres.push(p); } return pidx.get(p); };
+  const compact = {
+    v: 2, f: session.focus, m: session.mode || "freestyle", c: session.category || null, z: session.zonePath || [],
+    b: (session.blocks || []).map((bk) => ({
+      n: bk.name, r: bk.role || "", i: bk.intensity || "", s: bk.structure || "", t: bk.time || "",
+      it: (bk.items || []).map((it) => ({ id: it.movement.id, p: pi(it.prescription), k: it.slotKey || "", x: it.test ? 1 : 0 })),
+    })),
+  };
+  compact.pd = pres;
+  return b64urlEncode(JSON.stringify(compact));
+}
+
+// Rebuild a session from a shared string, rehydrating movements from the local library. Unknown
+// movement ids are dropped. Loads/zones are recomputed by the caller for the local user.
+function decodeSession(str, movements) {
+  const c = JSON.parse(b64urlDecode(str));
+  if (!c || (c.v !== 2 && c.v !== 1)) throw new Error("Unrecognized share code");
+  const byId = {}; for (const m of movements) byId[m.id] = m;
+  const pd = c.pd || [];
+  const presc = (x) => (c.v === 1 ? (x.p || "") : (pd[x.p] || ""));
+  const blocks = (c.b || []).map((bk) => ({
+    name: bk.n, role: bk.r, intensity: bk.i, structure: bk.s, time: bk.t,
+    items: (bk.it || []).filter((x) => byId[x.id]).map((x) => ({ movement: byId[x.id], prescription: presc(x), slotKey: x.k || undefined, test: !!x.x })),
+  })).filter((bk) => bk.items.length);
+  return { date: null, focus: c.f, mode: c.m, category: c.c, zonePath: c.z || [], blocks, shared: true };
+}
+
+// ----------------------------------------------------------------------------
 // Session builder
 // ----------------------------------------------------------------------------
 
@@ -1096,6 +1154,7 @@ if (typeof module !== "undefined" && module.exports) {
     macrocycleWeek, macroBlockIndex, macroBlockKey, BLOCK_KEYS, BLOCK_NAMES, MACRO_BLOCKS, slotScheme,
     isTestWeek, estimate1RM, TEST_MAIN_SCHEME,
     weeklySets, parseSets, VOLUME_TARGETS,
+    sessionWorkload, encodeSession, decodeSession,
   };
 }
 
@@ -1104,10 +1163,11 @@ if (typeof module !== "undefined" && module.exports) {
 // ============================================================================
 if (typeof document !== "undefined") {
   const STORE_KEY = "wgen.state.v1";
-  const APP_VERSION = "v18"; // keep in sync with CACHE in service-worker.js; bump on each deploy
+  const APP_VERSION = "v19"; // keep in sync with CACHE in service-worker.js; bump on each deploy
   let DATA = { movements: [], gym: {} };
   let STATE = loadState();
   let CURRENT = null; // current generated session
+  let UNDO = [];      // snapshots of CURRENT for undo (add/remove)
 
   function loadState() {
     try {
@@ -1138,6 +1198,10 @@ if (typeof document !== "undefined") {
     renderFocusPicker();
     wireButtons();
     renderVersion(false);
+    // If opened from a shared link, load that workout.
+    if (location.hash && location.hash.indexOf("#w=") === 0) {
+      try { loadShared(location.hash); history.replaceState(null, "", location.pathname + location.search); } catch (e) {}
+    }
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("service-worker.js").then((reg) => {
         // When a newer deploy is installed, tell the user this screen is now stale.
@@ -1167,6 +1231,7 @@ if (typeof document !== "undefined") {
     document.getElementById("importInput").onchange = (e) => importData(e);
     document.getElementById("avoidedBtn").onclick = () => renderAvoided();
     document.getElementById("progressBtn").onclick = () => renderProgress();
+    document.getElementById("loadSharedBtn").onclick = () => promptLoadShared();
   }
 
   function generate(choice) {
@@ -1257,7 +1322,14 @@ if (typeof document !== "undefined") {
     const crowd = DATA.gym.crowd;
     const busy = crowd && isBusyDay(["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][new Date(todayStr() + "T00:00:00").getDay()], crowd);
     const busyNote = busy ? `<div class="testnote">🚦 Busy day — steering away from the crowded ${(crowd.crowdedZones || []).map((z) => `Zone ${z}`).join("/")} (bench/DB &amp; machines) toward the rigs, open floor &amp; cardio.</div>` : "";
-    let html = `<div class="sesshead"><h2>${CURRENT.focus}</h2><div class="path">Path: ${pathStr}</div>${busyNote}</div>`;
+    const wl = sessionWorkload(CURRENT);
+    const sharedNote = CURRENT.shared ? `<div class="testnote">📲 Shared workout loaded — enter your own weights.</div>` : "";
+    let html = `<div class="sesshead"><h2>${CURRENT.focus}</h2><div class="path">Path: ${pathStr}</div>${busyNote}${sharedNote}` +
+      `<div class="workload wl-${wl.level}">Volume: <b>${wl.sets} working sets</b> — ${wl.label}</div>` +
+      `<div class="stoolbar">` +
+      `<button id="addAcc">+ Accessory</button><button id="addFin">+ Finisher</button>` +
+      `<button id="shareBtn">Share</button>${UNDO.length ? `<button id="undoBtn">↶ Undo</button>` : ""}` +
+      `</div></div>`;
     CURRENT.blocks.forEach((bk, bi) => {
       const zoneTag = bk.zone ? `<span class="zone">Zone ${bk.zone} — ${bk.zoneName}</span>` : `<span class="zone">moves span zones</span>`;
       html += `<div class="block"><div class="bhead"><h3>${bk.name}</h3><span class="time">${bk.time || ""}</span></div>`;
@@ -1282,7 +1354,7 @@ if (typeof document !== "undefined") {
             html += `<div class="loads"><span>You: <b>${hs.him.display}</b> ${lh}</span><span>Her: <b>${hs.her.display}</b> ${lr}</span></div>`;
           }
         }
-        html += `<div class="mactions"><button class="swap" data-bi="${bi}" data-ii="${ii}">Swap</button><button class="avoid" data-bi="${bi}" data-ii="${ii}">Don't suggest</button></div>`;
+        html += `<div class="mactions"><button class="swap" data-bi="${bi}" data-ii="${ii}">Swap</button><button class="avoid" data-bi="${bi}" data-ii="${ii}">Don't suggest</button><button class="rm" data-bi="${bi}" data-ii="${ii}">✕ Remove</button></div>`;
         html += `</div>`;
       });
       html += `</div>`;
@@ -1290,8 +1362,133 @@ if (typeof document !== "undefined") {
     el.innerHTML = html;
     el.querySelectorAll("button.swap").forEach((b) => b.onclick = () => swapMove(+b.dataset.bi, +b.dataset.ii));
     el.querySelectorAll("button.avoid").forEach((b) => b.onclick = () => avoidMove(+b.dataset.bi, +b.dataset.ii));
+    el.querySelectorAll("button.rm").forEach((b) => b.onclick = () => removeMove(+b.dataset.bi, +b.dataset.ii));
     el.querySelectorAll(".loadedit").forEach((s) => s.onclick = () => editLoad(+s.dataset.bi, +s.dataset.ii, s.dataset.who));
+    const byId = (id) => document.getElementById(id);
+    byId("addAcc").onclick = () => addExercise("accessory");
+    byId("addFin").onclick = () => addExercise("finisher");
+    byId("shareBtn").onclick = () => shareSession();
+    if (byId("undoBtn")) byId("undoBtn").onclick = () => undoLast();
     document.getElementById("logBtn").disabled = false;
+  }
+
+  function recomputeZones() {
+    assignZones(DATA.gym, CURRENT.blocks);
+    CURRENT.zonePath = CURRENT.blocks.map((b) => b.zone).filter((z, i, a) => z && (i === 0 || z !== a[i - 1]));
+  }
+  function snapshot() { UNDO.push(JSON.stringify(CURRENT)); if (UNDO.length > 15) UNDO.shift(); }
+  function undoLast() { if (UNDO.length) { CURRENT = JSON.parse(UNDO.pop()); renderSession(); } }
+
+  // Remove a movement (with confirmation); undo is available afterward via the toolbar.
+  function removeMove(bi, ii) {
+    const it = CURRENT.blocks[bi].items[ii];
+    if (!confirm(`Remove "${it.movement.name}" from this workout?`)) return;
+    snapshot();
+    CURRENT.blocks[bi].items.splice(ii, 1);
+    if (!CURRENT.blocks[bi].items.length) CURRENT.blocks.splice(bi, 1);
+    recomputeZones();
+    renderSession();
+  }
+
+  // The regions this session emphasizes (program day config, or the current movements for freestyle).
+  function sessionRegions() {
+    const cfg = PROGRAM_DAYS[CURRENT.focus];
+    if (cfg) return new Set([].concat(cfg.primary || [], cfg.secondary || []).map((p) => PATTERN_REGION[p]).filter(Boolean));
+    const s = new Set();
+    CURRENT.blocks.forEach((b) => b.items.forEach((it) => { const r = PATTERN_REGION[it.movement.pattern]; if (r) s.add(r); }));
+    return s;
+  }
+
+  function pickAddCandidate(kind) {
+    const used = new Set(sessionMovementIds());
+    const today = todayStr();
+    const busy = isBusyDay(["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][new Date(today + "T00:00:00").getDay()], DATA.gym.crowd);
+    const { patternFatigue } = computeFatigue(STATE.history, today);
+    let pool = filterCandidates(DATA.movements, { today, history: STATE.history, avoidList: STATE.avoidList })
+      .filter((m) => !used.has(m.id) && (CURRENT.mode !== "program" || m.programDefault !== false));
+    let cands;
+    if (kind === "finisher") {
+      cands = pool.filter((m) => m.cardio || ["biceps", "triceps", "side-delts", "rear-delts", "calves", "core", "conditioning"].includes(m.pattern));
+    } else {
+      cands = pool.filter((m) => (m.roles || []).some((r) => r === "accessory" || r === "strength2") && !m.cardio);
+      const regions = sessionRegions();
+      if (regions.size) { const inR = cands.filter((m) => regions.has(PATTERN_REGION[m.pattern])); if (inR.length) cands = inR; }
+    }
+    if (!cands.length) return null;
+    const score = (m) => freshness(m.pattern, patternFatigue) + tierBonus(m) - crowdPenalty(m, busy, DATA.gym.crowd) + 0.01;
+    return pickWeighted(cands, score, Math.random);
+  }
+
+  // Append an extra accessory or finisher to the session (grouped into an "Added" block).
+  function addExercise(kind) {
+    const m = pickAddCandidate(kind);
+    if (!m) { alert(`No suitable ${kind} available to add.`); return; }
+    snapshot();
+    const isFin = kind === "finisher";
+    const presc = isFin
+      ? (m.cardio ? "5–8 min hard finish" : "burnout: 2–3 × 15–20")
+      : (m.unit === "time" ? "3 × 30–45s" : (m.unit === "distance" ? "3 × 20–30 m" : "3 × 12–15"));
+    const reps = (String(presc).match(/(\d+)\s*$/) || [])[1] || 12;
+    const item = { movement: m, prescription: presc, load: loadSuggestion(m, +reps, STATE.maxes, STATE.settings, DATA.gym.inventory, STATE.progress || {}) };
+    const name = isFin ? "Added Finisher" : "Added Accessories";
+    let blk = CURRENT.blocks.find((b) => b.name === name);
+    if (!blk) { blk = { name, role: isFin ? "finisher" : "accessory", intensity: isFin ? "med" : "light", items: [] }; CURRENT.blocks.push(blk); }
+    blk.items.push(item);
+    recomputeZones();
+    renderSession();
+  }
+
+  // --- Sharing (serverless): the plan travels in a link/code; weights stay per-device ----------
+  function shareSession() {
+    if (!CURRENT) return;
+    const code = encodeSession(CURRENT);
+    const link = location.origin + location.pathname + "#w=" + code;
+    const el = document.getElementById("session");
+    const canShare = typeof navigator !== "undefined" && !!navigator.share;
+    el.innerHTML = `<div class="card"><h2>Share workout</h2>` +
+      `<p class="path">Open this on the other phone or laptop to load the same workout. Each of you enters your own weights; further edits are your own.</p>` +
+      (canShare ? `<button id="nativeShare" class="primary">Share link… (AirDrop / Messages)</button>` : "") +
+      `<label class="sharelbl">Link</label><div class="sharerow"><input id="shareLink" readonly value="${link}"><button id="copyLink">Copy</button></div>` +
+      `<label class="sharelbl">…or copy this code and use “Load shared” on the other device</label><div class="sharerow"><textarea id="shareCode" class="codebox" readonly rows="3">${code}</textarea><button id="copyCode">Copy</button></div>` +
+      `<div class="footer"><button id="shareBack">Back to workout</button></div></div>`;
+    if (canShare) document.getElementById("nativeShare").onclick = () => navigator.share({ title: "Workout", text: "Here's our workout", url: link }).catch(() => {});
+    document.getElementById("copyLink").onclick = () => copyText(link, document.getElementById("shareLink"), "Link copied");
+    document.getElementById("copyCode").onclick = () => copyText(code, document.getElementById("shareCode"), "Code copied");
+    document.getElementById("shareBack").onclick = () => renderSession();
+  }
+
+  function copyText(text, inputEl, msg) {
+    const done = () => { try { alert(msg); } catch (e) {} };
+    const fallback = () => {
+      if (inputEl) { inputEl.removeAttribute("readonly"); inputEl.select(); try { document.execCommand("copy"); } catch (e) {} inputEl.setAttribute("readonly", ""); }
+      done();
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done).catch(fallback);
+    else fallback();
+  }
+
+  // Load a shared workout from a pasted link or code. Recomputes loads/zones for the local user.
+  function loadShared(input) {
+    let code = (input || "").trim();
+    const h = code.indexOf("#w=");
+    if (h >= 0) code = code.slice(h + 3);
+    const s = decodeSession(code, DATA.movements);
+    s.blocks.forEach((bk) => bk.items.forEach((it) => {
+      if (it.movement.loadable) {
+        const reps = (String(it.prescription).match(/[×x]\s*(\d+)/) || [])[1] || 10;
+        it.load = loadSuggestion(it.movement, +reps, STATE.maxes, STATE.settings, DATA.gym.inventory, STATE.progress || {});
+      }
+    }));
+    assignZones(DATA.gym, s.blocks);
+    s.zonePath = s.blocks.map((b) => b.zone).filter((z, i, a) => z && (i === 0 || z !== a[i - 1]));
+    UNDO = [];
+    CURRENT = s;
+    renderSession();
+  }
+  function promptLoadShared() {
+    const v = prompt("Paste the shared workout link or code:");
+    if (!v) return;
+    try { loadShared(v); } catch (e) { alert("Couldn't read that share — check you copied the whole link/code."); }
   }
 
   function swapMove(bi, ii) {

@@ -98,6 +98,16 @@ No App Store, no build, no signing, no expiry. To update later, edit the files a
 - **Progress** (button in the footer) is a per-person dashboard: toggle **You / Her** and see each
   movement's program slot, **last** set (top + repeatable weight, or hold seconds, with Partial/
   assumed tags), **best** ever logged, **estimated 1RM**, and how many sessions you've logged it.
+- **Add / remove / undo:** **+ Accessory** and **+ Finisher** append an extra, day-appropriate
+  move (respecting region, avoid-list, programDefault, and busy-day crowd rules). **✕ Remove** asks
+  to confirm, and an **↶ Undo** button reverses your last add/remove. A **workload meter** shows
+  total working sets and turns amber/red if you're piling on too much volume.
+- **Share a workout (serverless):** the **Share** button packs the *plan* (exercises, sets/reps —
+  not weights) into a **link** and a **code**. Use the native **Share…** sheet (AirDrop / Messages)
+  or copy the link/code; open it on the other device — your wife's phone, or your own phone at the
+  gym after generating on your laptop — and tap **Load shared** (or just open the link) to load the
+  exact same workout. Each person then enters their **own** weights and can keep editing their own
+  copy. No account or server; the plan rides inside the link itself.
 - **Slot continuity:** within the program, each day's main/secondary/accessory **slot remembers
   the movement you actually did** and reuses it next time, so your load history accumulates on
   one lift instead of scattering. Swap any time — the swapped movement becomes the new slot pick.

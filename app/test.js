@@ -567,5 +567,31 @@ ok("old session (3 days ago) doesn't reorder", G.nextProgramDay({ daysPerWeek: 6
 // Back-compat: called without history/today, behaves positionally.
 ok("no-history call is positional", G.nextProgramDay({ daysPerWeek: 6, logged: 0 }) === "Push Strength");
 
+console.log("\n== Workload meter ==");
+const wkSession = G.buildProgramSession(DATA, { today, history: [], maxes: {}, settings: {}, day: "Push Strength", seed: 3, macroBlock: "hypertrophy_base", mesoWeek: 1 });
+const wl = G.sessionWorkload(wkSession);
+ok("workload counts working sets (>0)", wl.sets > 0, JSON.stringify(wl));
+ok("light session reads ok", G.sessionWorkload({ blocks: [{ items: [{ prescription: "3×10" }, { prescription: "3×12" }] }] }).level === "ok");
+ok("piled-on session reads over", G.sessionWorkload({ blocks: [{ items: Array.from({ length: 11 }, () => ({ prescription: "3×12" })) }] }).level === "over");
+ok("warm-ups/cardio don't add volume", G.sessionWorkload({ blocks: [{ items: [{ prescription: "8–10 easy reps" }, { prescription: "AMRAP 12 min" }, { prescription: "30s hold" }] }] }).sets === 0);
+
+console.log("\n== Share encode/decode round-trip ==");
+const shareSrc = G.buildProgramSession(DATA, { today, history: [], maxes: {}, settings: {}, day: "Pull Strength", seed: 8, macroBlock: "strength_biased", mesoWeek: 2 });
+const codeStr = G.encodeSession(shareSrc);
+ok("encode produces a url-safe string", typeof codeStr === "string" && /^[A-Za-z0-9_-]+$/.test(codeStr), codeStr.slice(0, 24) + "…");
+const decoded = G.decodeSession(codeStr, movements);
+const srcIds = shareSrc.blocks.flatMap(b => b.items.map(i => i.movement.id));
+const decIds = decoded.blocks.flatMap(b => b.items.map(i => i.movement.id));
+ok("decode restores the same movements in order", JSON.stringify(srcIds) === JSON.stringify(decIds), `${srcIds.length} vs ${decIds.length}`);
+const srcPresc = shareSrc.blocks.flatMap(b => b.items.map(i => i.prescription));
+const decPresc = decoded.blocks.flatMap(b => b.items.map(i => i.prescription));
+ok("decode restores prescriptions (dictionary)", JSON.stringify(srcPresc) === JSON.stringify(decPresc));
+ok("decode carries focus + mode", decoded.focus === shareSrc.focus && decoded.mode === "program" && decoded.shared === true);
+ok("decode drops unknown movement ids gracefully", (() => {
+  const tampered = G.decodeSession(codeStr, movements.filter(m => m.id !== decIds[0]));
+  return tampered.blocks.flatMap(b => b.items).every(i => i.movement.id !== decIds[0]);
+})());
+ok("share omits loads (weights stay personal)", decoded.blocks.every(b => b.items.every(i => i.load === undefined)));
+
 console.log(`\n==== ${pass} passed, ${fail} failed ====`);
 process.exit(fail ? 1 : 0);
