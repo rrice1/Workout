@@ -512,8 +512,11 @@ function buildSession(data, opts) {
   const warmMob = candidatesFor(pool, { role: "warmup", cardio: false }).filter((m) => !m.loadable && !usedIds.has(m.id));
   const warmItems = [];
   if (warmCardio.length) { const c = warmCardio[Math.floor(rng() * warmCardio.length)]; warmItems.push({ movement: c, prescription: prescribe(c, "warmup", rng) }); note(c.id); }
-  const mobScore = (m) => 1 + ((targetRegions.has(m.region) || m.region === "full") ? 0.8 : 0);
-  let mobPool = warmMob.slice();
+  // Warm up the regions this session trains (full-body mobility always ok); fall back if too few.
+  const onTargetWarm = (m) => targetRegions.has(m.region) || m.region === "full";
+  const mobScore = (m) => 1 + (onTargetWarm(m) ? 0.8 : 0);
+  let mobPool = warmMob.filter(onTargetWarm);
+  if (mobPool.length < 3) mobPool = warmMob.slice();
   for (let i = 0; i < 3 && mobPool.length; i++) {
     const m = pickWeighted(mobPool, mobScore, rng);
     warmItems.push({ movement: m, prescription: prescribe(m, "warmup", rng) });
@@ -863,8 +866,13 @@ function buildProgramSession(data, opts) {
     const wm = cand({ roles: ["warmup"], cardio: false, loadable: false });
     const items = [];
     if (wc.length) { const c = wc[Math.floor(rng() * wc.length)]; items.push({ movement: c, prescription: prescribe(c, "warmup", rng) }); note(c); }
-    const mob = (m) => 1 + ((targetRegions.has(m.region) || m.region === "full") ? 0.8 : 0);
-    let mp = wm.slice();
+    // Warm up the body parts you're about to train: keep only mobility that matches the day's
+    // regions (or full-body), so you don't do hip 90/90s before a bench press. Fall back to the
+    // full list only if too few match.
+    const onTarget = (m) => targetRegions.has(m.region) || m.region === "full";
+    let mp = wm.filter(onTarget);
+    if (mp.length < 3) mp = wm.slice();
+    const mob = (m) => 1 + (onTarget(m) ? 0.8 : 0);
     for (let i = 0; i < 3 && mp.length; i++) { const m = pickWeighted(mp, mob, rng); items.push({ movement: m, prescription: prescribe(m, "warmup", rng) }); note(m); mp = mp.filter((x) => x.id !== m.id); }
     return { name: "Warm Up / Prep", role: "warmup", intensity: "light", items };
   }

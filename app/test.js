@@ -493,5 +493,31 @@ const lc = movements.find(m => m.id === "leg-curl");
 ok("Leg Curl renamed to Seated Leg Curl", lc.name === "Seated Leg Curl");
 ok("Sumo deadlift is rare (frequency-capped)", movements.find(m => m.id === "sumo-deadlift-bb").frequencyCapPerWeeks > 0);
 
+console.log("\n== Warm-up matches the day's body regions ==");
+let warmMismatch = null;
+for (const day of Object.keys(G.PROGRAM_DAYS)) {
+  const cfg = G.PROGRAM_DAYS[day];
+  const tr = new Set([...(cfg.primary || []), ...(cfg.secondary || [])].map(p => G.PATTERN_REGION[p]).filter(Boolean));
+  for (let seed = 1; seed <= 30 && !warmMismatch; seed++) {
+    const s = G.buildProgramSession(DATA, { today, history: [], maxes: {}, settings: {}, day, seed, macroBlock: "hypertrophy_base", mesoWeek: 1 });
+    const warm = s.blocks.find(b => b.role === "warmup");
+    if (!warm) continue;
+    for (const it of warm.items) {
+      const mv = it.movement;
+      if (mv.cardio) continue; // the general cardio piece is allowed regardless
+      if (!(tr.has(mv.region) || mv.region === "full")) { warmMismatch = `${day}/${seed}: ${mv.id} (${mv.region}) not in [${[...tr]}]`; break; }
+    }
+  }
+}
+ok("every warm-up mobility matches the day's regions (or full)", warmMismatch === null, warmMismatch);
+// The reported case: no hip/lower mobility (90/90, leg swings) before a Push session.
+let lowerOnPush = false;
+for (let seed = 1; seed <= 40; seed++) {
+  const s = G.buildProgramSession(DATA, { today, history: [], maxes: {}, settings: {}, day: "Push Strength", seed, macroBlock: "hypertrophy_base", mesoWeek: 1 });
+  const warm = s.blocks.find(b => b.role === "warmup");
+  if (warm && warm.items.some(it => !it.movement.cardio && it.movement.region === "lower")) lowerOnPush = true;
+}
+ok("no lower-body mobility in a Push warm-up", !lowerOnPush);
+
 console.log(`\n==== ${pass} passed, ${fail} failed ====`);
 process.exit(fail ? 1 : 0);
