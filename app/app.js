@@ -1428,7 +1428,7 @@ if (typeof module !== "undefined" && module.exports) {
 // ============================================================================
 if (typeof document !== "undefined") {
   const STORE_KEY = "wgen.state.v1";
-  const APP_VERSION = "v24"; // keep in sync with CACHE in service-worker.js; bump on each deploy
+  const APP_VERSION = "v25"; // keep in sync with CACHE in service-worker.js; bump on each deploy
   let DATA = { movements: [], gym: {} };
   let STATE = loadState();
   let CURRENT = null; // current generated session

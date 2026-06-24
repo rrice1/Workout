@@ -595,8 +595,9 @@ ok("share omits loads (weights stay personal)", decoded.blocks.every(b => b.item
 
 console.log("\n== Dumbbells available in Zone B (except bench moves) ==");
 const dbMoves = movements.filter(m => m.implement === "dumbbell");
-ok("dumbbell moves can be done in Zone B (except bench-based ones)", dbMoves.filter(m => !(m.zones || []).includes("B")).every(m => ["db-bench", "db-incline-bench", "db-fly", "spider-curl", "db-pullover", "seated-db-curl"].includes(m.id)), dbMoves.filter(m => !(m.zones || []).includes("B")).map(m => m.id).join(", "));
-ok("bench-requiring DB moves stay out of Zone B", ["db-bench", "db-incline-bench", "db-fly"].every(id => !(movements.find(m => m.id === id).zones || []).includes("B")));
+ok("dumbbell moves can be done in Zone B (only incline-based ones can't — a box subs for a flat bench)", dbMoves.filter(m => !(m.zones || []).includes("B")).every(m => ["db-incline-bench", "spider-curl"].includes(m.id)), dbMoves.filter(m => !(m.zones || []).includes("B")).map(m => m.id).join(", "));
+ok("incline-requiring DB moves stay out of Zone B (a box can't replicate an incline)", ["db-incline-bench", "spider-curl"].every(id => !(movements.find(m => m.id === id).zones || []).includes("B")));
+ok("flat-bench DB moves gain Zone B/E (a box subs for a flat bench)", ["db-bench", "db-fly", "db-pullover", "seated-db-curl"].every(id => { const z = movements.find(m => m.id === id).zones || []; return z.includes("B") && z.includes("E"); }));
 ok("nothing is named 'Echo' anymore", movements.every(m => !/Echo/i.test(m.name)));
 
 console.log("\n== PHAT fixed template ==");
