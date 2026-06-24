@@ -181,3 +181,13 @@ button.rm { color: #e06b6b; border-color: #5a2e2e; }
 .sharerow { display: flex; gap: 8px; align-items: flex-start; }
 .sharerow input, .sharerow textarea { flex: 1; padding: 8px; border-radius: 8px; border: 1px solid #2c3140; background: var(--card2); color: var(--text); font-size: 12px; }
 .codebox { font-family: monospace; word-break: break-all; resize: vertical; }
+
+/* nSuns: 1RM entry + per-set weight tables */
+.nsrm, .nssets { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 13px; }
+.nsrm th, .nssets th { text-align: left; color: var(--muted); font-weight: 600; font-size: 11px; padding: 4px 6px; }
+.nsrm td, .nssets td { padding: 4px 6px; border-top: 1px solid #2c3140; }
+.nsrm td:first-child { color: var(--muted); width: 35%; }
+.nsrm input { width: 100%; padding: 7px 8px; border-radius: 8px; border: 1px solid #2c3140; background: var(--card2); color: var(--text); font-size: 15px; text-align: center; }
+.nssets td:first-child { color: var(--muted); width: 14%; }
+.nssets td:nth-child(2) { color: var(--muted); width: 18%; }
+.nssets tr.amrap td { color: var(--accent); font-weight: 600; }

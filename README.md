@@ -90,6 +90,15 @@ flips to **"update ready — tap to refresh"** when a newer deploy has been pick
     brutal 2-day rotation run three times a week — *Chest, Back & Legs* and *Shoulders & Arms*
     (5–6 sets per exercise, often to failure). Like PHAT these are **set in stone** but fully
     swap/log/share-able; pick any day from the dropdown for an ad-hoc session.
+  - **nSuns 531 LP (percentage-based):** the popular 6-day "deadlift focus" linear progression.
+    Unlike everything else, this one is driven by **your 1-rep maxes**, not RPE. Enter a true 1RM
+    for the four main lifts (Squat, Bench, Deadlift, Press) for **each person**; the app sets your
+    **training max** to 90% of it and computes the **exact weight for every set** as a percentage of
+    that TM, snapped to a loadable barbell — the way the spreadsheet does. Each day is a main lift
+    (the 9-set 5/3/1+ ladder, with an **AMRAP "+" set**) plus a secondary lift run off the related
+    lift's TM, plus an assistance note. **Edit a 1RM and the whole workout re-scales instantly** —
+    so when you hit all your reps on the + set, bump that lift's 1RM to progress. (The four 1RMs you
+    enter here also feed the dynamic program's percentage suggestions.)
   - **Freestyle (CrossFit-style):** the original generator — Warm Up → Strength 1 → Strength 2
     superset → MetCon. Leave it on *Auto* to pick the freshest focus, or choose a specific one.
 - **Warm-ups match the day:** the warm-up only pulls mobility/prep for the regions you're about to

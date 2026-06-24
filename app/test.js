@@ -657,5 +657,30 @@ ok("Arnold session round-trips through share encode/decode", arnDecoded.mode ===
 // Set ranges parse to the upper bound for the volume meter.
 ok("set-range prescription parses (3–4 × 10 → 4 sets)", G.parseSets("3–4 × 10") === 4 && G.parseSets("4×5") === 4 && G.parseSets("3×3–5") === 3);
 
+console.log("\n== nSuns 531 LP (% of training max) ==");
+ok("6 nSuns days defined", Object.keys(G.NSUNS_DAYS).length === 6);
+const nsAll = Object.keys(G.NSUNS_DAYS).flatMap(d => G.NSUNS_DAYS[d].items.map(i => i.id));
+ok("every nSuns lift resolves to a real movement", nsAll.every(id => mvIds.has(id)), nsAll.filter(id => !mvIds.has(id)).join(", "));
+ok("training max = 90% of 1RM rounded to 5", G.nsunsTM(225) === 205 && G.nsunsTM(315) === 285 && G.nsunsTM(355) === 320 && G.nsunsTM(null) === null);
+const nsMax = { "back-squat-bb": { him: 315, her: 135 }, "bench-press-bb": { him: 225, her: 95 }, "deadlift-bb": { him: 355, her: 185 }, "strict-press-bb": { him: 135, her: 65 } };
+const ns = G.buildNsunsSession(DATA, { day: "nSuns Mon — Bench / OHP", today, maxes: nsMax, settings: { bars: { him: "mens", her: "womens" } } });
+ok("nSuns session mode is nsuns", ns.mode === "nsuns");
+ok("T1 bench has 9 sets, T2 OHP has 8", ns.blocks[0].items[0].sets.length === 9 && ns.blocks[0].items[1].sets.length === 8);
+// Set 1 of Monday bench is 65% of TM 205 (~133) snapped to a loadable barbell near 135.
+const b1 = ns.blocks[0].items[0].sets[0];
+ok("set weight is a % of TM, barbell-snapped (Mon bench 65% ≈ 134)", b1.pct === 65 && b1.him >= 130 && b1.him <= 137 && b1.reps === 8);
+// AMRAP marked on the last Monday-bench set and on set 3 of a 5/3/1+ day.
+ok("Monday bench AMRAP on last set", ns.blocks[0].items[0].sets[8].amrap === true);
+const nsTue = G.buildNsunsSession(DATA, { day: "nSuns Tue — Deadlift / Front Squat", today, maxes: nsMax, settings: { bars: { him: "mens", her: "womens" } } });
+ok("Deadlift T1 puts the AMRAP on set 3 (95%)", nsTue.blocks[0].items[0].sets[2].pct === 95 && nsTue.blocks[0].items[0].sets[2].amrap === true);
+// Secondary lift runs off the related main lift's TM (Sumo off Deadlift, Front Squat off Squat).
+const nsThu = G.buildNsunsSession(DATA, { day: "nSuns Thu — Squat / Sumo Deadlift", today, maxes: nsMax, settings: {} });
+ok("Sumo (T2) runs off the Deadlift TM", nsThu.blocks[0].items[1].tm.him === G.nsunsTM(355));
+ok("Front Squat (T2) runs off the Squat TM", nsTue.blocks[0].items[1].tm.him === G.nsunsTM(315));
+// No 1RM entered → weights are null (prompts you to enter), TM null.
+const empty = G.buildNsunsSession(DATA, { day: "nSuns Mon — Bench / OHP", today, maxes: {}, settings: {} });
+ok("no 1RM → no weights (prompts entry)", empty.blocks[0].items[0].tm.him === null && empty.blocks[0].items[0].sets[0].him === null);
+ok("nSuns lifts are conventional barbell movements", nsAll.every(id => DATA.movements.find(m => m.id === id).implement === "barbell"));
+
 console.log(`\n==== ${pass} passed, ${fail} failed ====`);
 process.exit(fail ? 1 : 0);

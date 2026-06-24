@@ -1329,6 +1329,100 @@ function buildFixedSession(mode, data, opts) {
 function buildPhatSession(data, opts) { return buildFixedSession("phat", data, opts); }
 function buildArnoldSession(data, opts) { return buildFixedSession("arnold", data, opts); }
 
+// ----------------------------------------------------------------------------
+// nSuns 531 LP — 6-day "Deadlift Focus" (from the nSuns Linear Progression workbook)
+// ----------------------------------------------------------------------------
+// Pure percentage-of-training-max program. You enter a true 1RM per main lift; the training
+// max (TM) = 90% of it (rounded to 5), and EVERY set is a fixed % of the relevant lift's TM,
+// snapped to a loadable barbell. The "1+"/"x+" set is an AMRAP — hit your reps to know when to
+// bump the 1RM. Secondary (T2) lifts run off the related main lift's TM at a lighter ladder.
+const NSUNS_LIFT_MOVEMENT = { squat: "back-squat-bb", bench: "bench-press-bb", deadlift: "deadlift-bb", press: "strict-press-bb" };
+const NSUNS_LIFT_LABEL = { squat: "Squat", bench: "Bench", deadlift: "Deadlift", press: "Press" };
+
+// T2: 8 sets, reps 6/5/3/5/7/4/6/8, ramping to a peak % then holding (peak−20, peak−10, peak×6).
+const NSUNS_T2_REPS = [6, 5, 3, 5, 7, 4, 6, 8];
+function nsunsT2(peak) {
+  return [peak - 20, peak - 10, peak, peak, peak, peak, peak, peak].map((pct, i) => ({ pct, reps: NSUNS_T2_REPS[i] }));
+}
+// T1: the 9-set 5/3/1+ ladder (AMRAP on set 3 at 95% and on the last set). Reps vary by lift.
+const NSUNS_T1_PCTS = [75, 85, 95, 90, 85, 80, 75, 70, 65];
+function nsunsT1(reps) {
+  return NSUNS_T1_PCTS.map((pct, i) => ({ pct, reps: reps[i], amrap: i === 2 || i === 8 }));
+}
+
+const NSUNS_DAYS = {
+  "nSuns Mon — Bench / OHP": { day: "Monday", category: "upper", assistance: "Chest, Arms, Back", items: [
+    { id: "bench-press-bb", base: "bench", t: "T1", sets: [
+      { pct: 65, reps: 8 }, { pct: 75, reps: 6 }, { pct: 85, reps: 4 }, { pct: 85, reps: 4 }, { pct: 85, reps: 4 },
+      { pct: 80, reps: 5 }, { pct: 75, reps: 6 }, { pct: 70, reps: 7 }, { pct: 65, reps: 8, amrap: true } ] },
+    { id: "strict-press-bb", base: "press", t: "T2", sets: nsunsT2(70) },
+  ] },
+  "nSuns Tue — Deadlift / Front Squat": { day: "Tuesday", category: "lower", assistance: "Back, Abs", items: [
+    { id: "deadlift-bb", base: "deadlift", t: "T1", sets: nsunsT1([5, 3, 1, 3, 3, 3, 3, 3, 3]) },
+    { id: "front-squat-bb", base: "squat", t: "T2", sets: nsunsT2(55) },
+  ] },
+  "nSuns Wed — OHP / Incline Bench": { day: "Wednesday", category: "upper", assistance: "Shoulders, Chest", items: [
+    { id: "strict-press-bb", base: "press", t: "T1", sets: nsunsT1([5, 3, 1, 3, 3, 3, 5, 5, 5]) },
+    { id: "incline-bench-bb", base: "bench", t: "T2", sets: nsunsT2(60) },
+  ] },
+  "nSuns Thu — Squat / Sumo Deadlift": { day: "Thursday", category: "lower", assistance: "Legs, Abs", items: [
+    { id: "back-squat-bb", base: "squat", t: "T1", sets: nsunsT1([5, 3, 1, 3, 3, 3, 5, 5, 5]) },
+    { id: "sumo-deadlift-bb", base: "deadlift", t: "T2", sets: nsunsT2(70) },
+  ] },
+  "nSuns Fri — Bench / Close-Grip": { day: "Friday", category: "upper", assistance: "Arms, Other", items: [
+    { id: "bench-press-bb", base: "bench", t: "T1", sets: nsunsT1([5, 3, 1, 3, 5, 3, 5, 3, 5]) },
+    { id: "close-grip-bench-bb", base: "bench", t: "T2", sets: nsunsT2(60) },
+  ] },
+  "nSuns Sat — Deadlift / Front Squat": { day: "Saturday", category: "lower", assistance: "Upper Back, Legs", items: [
+    { id: "deadlift-bb", base: "deadlift", t: "T1", sets: [
+      { pct: 70, reps: 3 }, { pct: 70, reps: 3 }, { pct: 70, reps: 3, amrap: true }, { pct: 70, reps: 3 },
+      { pct: 70, reps: 3 }, { pct: 70, reps: 3 }, { pct: 70, reps: 3 }, { pct: 70, reps: 3 } ] },
+    { id: "front-squat-bb", base: "squat", t: "T2", sets: [
+      { pct: 55, reps: 3 }, { pct: 55, reps: 3 }, { pct: 55, reps: 3 }, { pct: 55, reps: 3 }, { pct: 55, reps: 3 }, { pct: 55, reps: 3 } ] },
+  ] },
+};
+
+// Training max = 90% of a true 1RM, rounded to the nearest 5 lb.
+function nsunsTM(oneRM) { return oneRM ? Math.round((0.9 * oneRM) / 5) * 5 : null; }
+
+function nsunsSummary(spec) {
+  const pcts = spec.sets.map((s) => s.pct);
+  const amrapIdx = spec.sets.findIndex((s) => s.amrap);
+  return `${spec.t}: ${spec.sets.length}×${spec.sets.map((s) => s.reps).join("/")} @ ${Math.min(...pcts)}–${Math.max(...pcts)}% TM${amrapIdx >= 0 ? ` (AMRAP set ${amrapIdx + 1})` : ""}`;
+}
+
+// Build a day. Reads each person's 1RM for the four main lifts from maxes (keyed by the lift's
+// movement id), derives the TM, and computes every set's snapped barbell weight per person.
+function buildNsunsSession(data, opts) {
+  const { movements, gym } = data;
+  const inv = gym.inventory, settings = opts.settings || {}, maxes = opts.maxes || {};
+  const cfg = NSUNS_DAYS[opts.day];
+  if (!cfg) throw new Error("Unknown nSuns day: " + opts.day);
+  const byId = {}; for (const m of movements) byId[m.id] = m;
+  const barKgOf = (who) => (settings.bars && settings.bars[who] === "womens") ? inv.barbells.womens_kg : inv.barbells.mens_kg;
+  const items = cfg.items.map((spec) => {
+    const m = byId[spec.id];
+    const mid = NSUNS_LIFT_MOVEMENT[spec.base];
+    const tm = {}, oneRM = {};
+    for (const who of ["him", "her"]) {
+      const orm = maxes[mid] && maxes[mid][who] != null ? maxes[mid][who] : null;
+      oneRM[who] = orm; tm[who] = nsunsTM(orm);
+    }
+    const sets = spec.sets.map((s) => {
+      const set = { pct: s.pct, reps: s.reps, amrap: !!s.amrap };
+      for (const who of ["him", "her"]) {
+        if (tm[who]) { const r = roundLoad(tm[who] * s.pct / 100, "barbell", inv, barKgOf(who)); set[who] = r ? r.valueLb : null; }
+        else set[who] = null;
+      }
+      return set;
+    });
+    return { movement: m, base: spec.base, t: spec.t, tm, oneRM, sets, slotKey: `nsuns::${opts.day}::${spec.id}`, prescription: nsunsSummary(spec) };
+  });
+  const blocks = [{ name: "Main lifts (% of training max)", role: "strength1", intensity: "heavy",
+    zone: "B", zoneName: gym.zones.B ? gym.zones.B.name : "", items }];
+  return { date: opts.today, focus: opts.day, mode: "nsuns", category: cfg.category, assistance: cfg.assistance, zonePath: ["B"], blocks, seed: opts.seed || 1 };
+}
+
 
 // Assign each block the zone that ALL its movements share (honest label). If the
 // movements don't share a single zone (e.g. a superset straddling B and C), leave
@@ -1416,6 +1510,7 @@ if (typeof module !== "undefined" && module.exports) {
     PROGRAM_SEQUENCE, programSequence, nextProgramDay, dayNumber, mesocycleWeek, MESO,
     dayMuscleRegions, sessionMuscleRegions, PHAT_DAYS, buildPhatSession, phatLoadSuggestion,
     ARNOLD_DAYS, buildArnoldSession, buildFixedSession, FIXED_TEMPLATES, isFixedMode,
+    NSUNS_DAYS, buildNsunsSession, nsunsTM, NSUNS_LIFT_MOVEMENT, NSUNS_LIFT_LABEL,
     macrocycleWeek, macroBlockIndex, macroBlockKey, BLOCK_KEYS, BLOCK_NAMES, MACRO_BLOCKS, slotScheme,
     isTestWeek, estimate1RM, TEST_MAIN_SCHEME,
     weeklySets, parseSets, VOLUME_TARGETS,
@@ -1428,7 +1523,7 @@ if (typeof module !== "undefined" && module.exports) {
 // ============================================================================
 if (typeof document !== "undefined") {
   const STORE_KEY = "wgen.state.v1";
-  const APP_VERSION = "v25"; // keep in sync with CACHE in service-worker.js; bump on each deploy
+  const APP_VERSION = "v26"; // keep in sync with CACHE in service-worker.js; bump on each deploy
   let DATA = { movements: [], gym: {} };
   let STATE = loadState();
   let CURRENT = null; // current generated session
@@ -1514,6 +1609,8 @@ if (typeof document !== "undefined") {
       CURRENT = buildPhatSession(DATA, Object.assign({ day: choice }, base));
     } else if (choice && ARNOLD_DAYS[choice]) {
       CURRENT = buildArnoldSession(DATA, Object.assign({ day: choice }, base));
+    } else if (choice && NSUNS_DAYS[choice]) {
+      CURRENT = buildNsunsSession(DATA, Object.assign({ day: choice }, base));
     } else if (choice && PROGRAM_DAYS[choice]) {
       CURRENT = buildProgramSession(DATA, Object.assign({ day: choice, mesoWeek: mesocycleWeek(STATE.program), macroBlock: macroBlockKey(STATE.program) }, base));
     } else {
@@ -1580,6 +1677,7 @@ if (typeof document !== "undefined") {
     const phat = Object.keys(PHAT_DAYS).map((d) => `<option value="${d}">${d}</option>`).join("");
     const arnoldOpts = (v) => Object.keys(ARNOLD_DAYS).filter((d) => ARNOLD_DAYS[d].variation === v)
       .map((d) => `<option value="${d}">${d}</option>`).join("");
+    const nsuns = Object.keys(NSUNS_DAYS).map((d) => `<option value="${d}">${d}</option>`).join("");
     const freestyle = `<option value="">Auto (freshest)</option>` +
       Object.keys(FOCUSES).map((f) => `<option value="${f}">${f}</option>`).join("");
     sel.innerHTML =
@@ -1587,6 +1685,7 @@ if (typeof document !== "undefined") {
       `<optgroup label="PHAT (fixed template)">${phat}</optgroup>` +
       `<optgroup label="Arnold Volume — Variation 1 (3-day split ×2)">${arnoldOpts(1)}</optgroup>` +
       `<optgroup label="Arnold Volume — Variation 2 (2-day split ×3)">${arnoldOpts(2)}</optgroup>` +
+      `<optgroup label="nSuns 531 LP (6-day, % of 1RM)">${nsuns}</optgroup>` +
       `<optgroup label="Freestyle (CrossFit-style)">${freestyle}</optgroup>`;
     // Restore the last chosen workout so it sticks across reloads.
     sel.value = (STATE.settings && STATE.settings.lastFocus) || "";
@@ -1602,6 +1701,7 @@ if (typeof document !== "undefined") {
     const el = document.getElementById("session");
     if (!CURRENT) { el.innerHTML = ""; return; }
     STATE.current = CURRENT; saveState(); // auto-save so it survives reopening the app
+    if (CURRENT.mode === "nsuns") return renderNsuns();
     const pathStr = CURRENT.zonePath.map((z) => `${z}·${DATA.gym.zones[z].name}`).join("  →  ");
     const crowd = DATA.gym.crowd;
     const busy = crowd && isBusyDay(["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][new Date(todayStr() + "T00:00:00").getDay()], crowd);
@@ -1656,6 +1756,48 @@ if (typeof document !== "undefined") {
     byId("shareBtn").onclick = () => shareSession();
     if (byId("undoBtn")) byId("undoBtn").onclick = () => undoLast();
     document.getElementById("logBtn").disabled = false;
+  }
+
+  // nSuns: a 1RM editor + a per-set weight table for each main lift (everything is a % of TM).
+  function renderNsuns() {
+    const el = document.getElementById("session");
+    STATE.maxes = STATE.maxes || {};
+    const lifts = ["squat", "bench", "deadlift", "press"];
+    const ormVal = (base, who) => { const mid = NSUNS_LIFT_MOVEMENT[base]; return (STATE.maxes[mid] && STATE.maxes[mid][who] != null) ? STATE.maxes[mid][who] : ""; };
+    let html = `<div class="sesshead"><h2>${CURRENT.focus}</h2>` +
+      `<div class="path">nSuns 531 LP · every weight is a % of your training max (90% of 1RM)</div>` +
+      `<div class="stoolbar"><button id="saveBtn">Save</button></div></div>`;
+    html += `<div class="block"><div class="bhead"><h3>Your 1-rep maxes</h3></div>` +
+      `<div class="bstruct">Enter a true 1RM per lift (lb). Training max = 90%, rounded to 5. Got all your reps on the <b>+</b> (AMRAP) set? Bump that lift's 1RM here and the whole workout re-scales.</div>` +
+      `<table class="nsrm"><tr><th></th><th>You</th><th>Her</th></tr>` +
+      lifts.map((b) => `<tr><td>${NSUNS_LIFT_LABEL[b]}</td>` +
+        `<td><input class="rmin" data-base="${b}" data-who="him" type="number" inputmode="numeric" value="${ormVal(b, "him")}" placeholder="—"></td>` +
+        `<td><input class="rmin" data-base="${b}" data-who="her" type="number" inputmode="numeric" value="${ormVal(b, "her")}" placeholder="—"></td></tr>`).join("") +
+      `</table></div>`;
+    CURRENT.blocks[0].items.forEach((it) => {
+      html += `<div class="block"><div class="bhead"><h3>${it.movement.name}</h3><span class="time">${it.t}</span></div>`;
+      html += `<div class="bstruct">Training max — You: <b>${it.tm.him ? it.tm.him + " lb" : "— set 1RM"}</b> · Her: <b>${it.tm.her ? it.tm.her + " lb" : "— set 1RM"}</b> <span class="mzone">Zone B</span></div>`;
+      html += `<table class="nssets"><tr><th>Set</th><th>%TM</th><th>You</th><th>Her</th></tr>`;
+      it.sets.forEach((s, i) => {
+        const rep = `×${s.reps}${s.amrap ? "+" : ""}`;
+        html += `<tr${s.amrap ? ` class="amrap"` : ""}><td>${i + 1}</td><td>${s.pct}%</td>` +
+          `<td>${s.him ? `${s.him} ${rep}` : `— ${rep}`}</td>` +
+          `<td>${s.her ? `${s.her} ${rep}` : `— ${rep}`}</td></tr>`;
+      });
+      html += `</table></div>`;
+    });
+    html += `<div class="block"><div class="bhead"><h3>Assistance</h3></div>` +
+      `<div class="bstruct">${CURRENT.assistance} — your choice of bodybuilding sets/reps (e.g. 5×10–15), kept light.</div></div>`;
+    el.innerHTML = html;
+    document.getElementById("saveBtn").onclick = () => saveWorkout();
+    el.querySelectorAll("input.rmin").forEach((inp) => inp.onchange = () => {
+      const mid = NSUNS_LIFT_MOVEMENT[inp.dataset.base], who = inp.dataset.who, v = parseFloat(inp.value);
+      STATE.maxes[mid] = STATE.maxes[mid] || {};
+      if (isFinite(v) && v > 0) STATE.maxes[mid][who] = Math.round(v); else delete STATE.maxes[mid][who];
+      saveState();
+      generate(CURRENT.focus); // re-scale every set from the new training max
+    });
+    document.getElementById("logBtn").disabled = true;
   }
 
   function recomputeZones() {
