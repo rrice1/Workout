@@ -105,6 +105,13 @@ flips to **"update ready — tap to refresh"** when a newer deploy has been pick
     **power** days (heavy compounds, 3–5 reps) and two **hypertrophy** days (8–12, more isolation):
     Upper Power, Lower Power, Upper Hypertrophy, Lower Hypertrophy. Swap/log/share/save like the
     other fixed templates.
+  - **Hyrox prep (fixed template):** a weekly block tuned to the Hyrox race (8×1 km run, each into
+    a station — SkiErg, Sled Push/Pull, Burpee Broad Jumps, Row, Farmers Carry, Sandbag Lunges, Wall
+    Balls). Six pickable days: **Lower Strength + Sled, Compromised Running, Ergs + Strength
+    Endurance, Pull Strength + Grip, Simulation (mixed), and Zone 2 Aerobic Base.** Loaded stations
+    (sled, wall ball, carry, sandbag, barbell) track his/hers weight; the runs and ergs log as
+    time/distance. Swap/log/share/save like the other fixed templates. Run ~5–6 days a week, picking
+    the right day each session.
   - **nSuns 531 LP (percentage-based):** the popular 6-day "deadlift focus" linear progression.
     Unlike everything else, this one is driven by **your 1-rep maxes**, not RPE. Enter a true 1RM
     for the four main lifts (Squat, Bench, Deadlift, Press) for **each person**; the app sets your

@@ -682,6 +682,22 @@ const empty = G.buildNsunsSession(DATA, { day: "nSuns Mon — Bench / OHP", toda
 ok("no 1RM → no weights (prompts entry)", empty.blocks[0].items[0].tm.him === null && empty.blocks[0].items[0].sets[0].him === null);
 ok("nSuns lifts are conventional barbell movements", nsAll.every(id => DATA.movements.find(m => m.id === id).implement === "barbell"));
 
+console.log("\n== Hyrox prep ==");
+ok("6 Hyrox days defined", Object.keys(G.HYROX_DAYS).length === 6);
+const hyAll = Object.keys(G.HYROX_DAYS).flatMap(d => G.HYROX_DAYS[d].blocks.flatMap(b => b.items.map(i => i.id)));
+ok("every Hyrox movement resolves to a real movement", hyAll.every(id => mvIds.has(id)), hyAll.filter(id => !mvIds.has(id)).join(", "));
+ok("Hyrox is a fixed-template mode", G.isFixedMode("hyrox"));
+ok("new Sled Pull and Sandbag Lunges movements exist", ["sled-pull", "sandbag-lunge"].every(id => mvIds.has(id)));
+ok("Sled Pull / Sandbag Lunges stay out of the dynamic program", ["sled-pull", "sandbag-lunge"].every(id => movements.find(m => m.id === id).programDefault === false));
+ok("the combined sled was renamed to just 'Sled Push'", movements.find(m => m.id === "sled-push").name === "Sled Push");
+const hy = G.buildHyroxSession(DATA, { today, maxes: {}, settings: {}, progress: {}, slots: {}, day: "Hyrox — Simulation (mixed)" });
+ok("Hyrox session mode is hyrox", hy.mode === "hyrox");
+// Loaded stations track weight; ergs/runs don't.
+ok("loaded stations (sled/wall ball/carry) get a weight row", (() => { const its = hy.blocks.flatMap(b => b.items); return ["sled-push", "wall-ball", "farmers-carry"].every(id => { const it = its.find(x => x.movement.id === id); return it && it.load && it.weighted === true; }); })());
+ok("ergs/runs are non-weighted and log as cardio", (() => { const its = hy.blocks.flatMap(b => b.items); return ["run-tread", "ski-erg", "row-erg"].every(id => { const it = its.find(x => x.movement.id === id); return it && !it.weighted && it.load === null; }); })());
+ok("a swapped Hyrox slot sticks via slots", G.buildHyroxSession(DATA, { today, maxes: {}, settings: {}, progress: {}, slots: { "hyrox::Hyrox — Lower Strength + Sled::0::1": "good-morning-bb" }, day: "Hyrox — Lower Strength + Sled" }).blocks[0].items[1].movement.id === "good-morning-bb");
+ok("Hyrox round-trips through share encode/decode", G.decodeSession(G.encodeSession(hy), movements).mode === "hyrox");
+
 console.log("\n== StrongLifts 5×5 + PHUL ==");
 ok("StrongLifts has 2 alternating workouts", Object.keys(G.STRONGLIFTS_DAYS).length === 2);
 const slAll = Object.keys(G.STRONGLIFTS_DAYS).flatMap(d => G.STRONGLIFTS_DAYS[d].blocks.flatMap(b => b.items.map(i => i.id)));

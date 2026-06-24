@@ -1445,10 +1445,88 @@ const PHUL_DAYS = {
   ] },
 };
 
+// Hyrox prep — a weekly template tuned to the race (8×1km run, each into a station: SkiErg, Sled
+// Push/Pull, Burpee Broad Jumps, Row, Farmers Carry, Sandbag Lunges, Wall Balls). Trains leg
+// strength, the two ergs, carries/grip, lunging & wall-ball endurance, burpees, and — above all —
+// compromised running. Loaded stations track his/hers weight; runs/ergs log as time/distance.
+const HYROX_DAYS = {
+  "Hyrox — Lower Strength + Sled": { category: "lower", blocks: [
+    { name: "Leg strength", role: "strength1", intensity: "heavy", items: [
+      { id: "back-squat-bb", scheme: "4×5", reps: 5, intensity: "heavy", weighted: true },
+      { id: "rdl-bb", scheme: "3×8", reps: 8, intensity: "med", weighted: true },
+    ] },
+    { name: "Sled & lunges (station strength)", role: "strength2", intensity: "med", items: [
+      { id: "sled-push", scheme: "4×25m heavy", reps: 5, intensity: "med", weighted: true },
+      { id: "sled-pull", scheme: "4×25m heavy", reps: 5, intensity: "med", weighted: true },
+      { id: "walking-lunge", scheme: "3×20m", reps: 20, intensity: "med", weighted: true },
+    ] },
+    { name: "Core", role: "accessory", intensity: "light", items: [
+      { id: "plank", scheme: "3×45–60s", reps: 0, intensity: "light", weighted: false },
+      { id: "hollow-hold", scheme: "3×30s", reps: 0, intensity: "light", weighted: false },
+    ] },
+  ] },
+  "Hyrox — Compromised Running": { category: "conditioning", blocks: [
+    { name: "Warm-up", role: "warmup", intensity: "light", items: [
+      { id: "run-tread", scheme: "10 min easy build", reps: 0, intensity: "light", weighted: false },
+    ] },
+    { name: "Run + station circuit — 6 rounds (run before each station)", role: "conditioning", intensity: "med", items: [
+      { id: "run-tread", scheme: "6×400m @ race pace", reps: 0, intensity: "med", weighted: false },
+      { id: "wall-ball", scheme: "rounds 1–2: 15 reps", reps: 15, intensity: "med", weighted: true },
+      { id: "burpee", scheme: "rounds 3–4: 10 broad jumps", reps: 10, intensity: "med", weighted: false },
+      { id: "walking-lunge", scheme: "rounds 5–6: 20m", reps: 20, intensity: "med", weighted: true },
+    ] },
+    { name: "Cooldown", role: "mobility", intensity: "light", items: [
+      { id: "run-tread", scheme: "5–10 min easy", reps: 0, intensity: "light", weighted: false },
+    ] },
+  ] },
+  "Hyrox — Ergs + Strength Endurance": { category: "conditioning", blocks: [
+    { name: "Ergs (intervals)", role: "conditioning", intensity: "med", items: [
+      { id: "ski-erg", scheme: "5×300m, :60 rest", reps: 0, intensity: "med", weighted: false },
+      { id: "row-erg", scheme: "5×300m, :60 rest", reps: 0, intensity: "med", weighted: false },
+    ] },
+    { name: "Stations (strength-endurance)", role: "strength2", intensity: "med", items: [
+      { id: "wall-ball", scheme: "5×20", reps: 20, intensity: "med", weighted: true },
+      { id: "farmers-carry", scheme: "4×50m", reps: 5, intensity: "med", weighted: true },
+      { id: "sandbag-lunge", scheme: "4×20m", reps: 20, intensity: "med", weighted: true },
+    ] },
+  ] },
+  "Hyrox — Pull Strength + Grip": { category: "upper", blocks: [
+    { name: "Pull strength", role: "strength1", intensity: "heavy", items: [
+      { id: "deadlift-bb", scheme: "4×5", reps: 5, intensity: "heavy", weighted: true },
+      { id: "bent-row-bb", scheme: "3×8", reps: 8, intensity: "med", weighted: true },
+    ] },
+    { name: "Back & grip", role: "strength2", intensity: "med", items: [
+      { id: "lat-pulldown-machine", scheme: "3×10", reps: 10, intensity: "med", weighted: true },
+      { id: "farmers-carry", scheme: "4×40m heavy", reps: 5, intensity: "med", weighted: true },
+    ] },
+    { name: "Arms & core", role: "accessory", intensity: "light", items: [
+      { id: "hammer-curl", scheme: "3×10", reps: 10, intensity: "light", weighted: true },
+      { id: "toes-to-bar", scheme: "3×12", reps: 12, intensity: "light", weighted: false },
+    ] },
+  ] },
+  "Hyrox — Simulation (mixed)": { category: "conditioning", blocks: [
+    { name: "Mini-Hyrox — 4 rounds, run before each station", role: "conditioning", intensity: "med", items: [
+      { id: "run-tread", scheme: "4×800m", reps: 0, intensity: "med", weighted: false },
+      { id: "ski-erg", scheme: "round 1: 250m", reps: 0, intensity: "med", weighted: false },
+      { id: "sled-push", scheme: "round 2: 25m", reps: 5, intensity: "med", weighted: true },
+      { id: "row-erg", scheme: "round 3: 250m", reps: 0, intensity: "med", weighted: false },
+      { id: "wall-ball", scheme: "round 4: 20 reps", reps: 20, intensity: "med", weighted: true },
+      { id: "farmers-carry", scheme: "finisher: 100m", reps: 5, intensity: "med", weighted: true },
+    ] },
+  ] },
+  "Hyrox — Zone 2 Aerobic Base": { category: "recovery", blocks: [
+    { name: "Easy aerobic — pick one, 40–60 min conversational", role: "conditioning", intensity: "light", items: [
+      { id: "run-tread", scheme: "40–60 min easy (Zone 2)", reps: 0, intensity: "light", weighted: false },
+      { id: "row-erg", scheme: "40–60 min easy (Zone 2)", reps: 0, intensity: "light", weighted: false },
+      { id: "bike-erg", scheme: "40–60 min easy (Zone 2)", reps: 0, intensity: "light", weighted: false },
+    ] },
+  ] },
+};
+
 // The fixed/"set in stone" templates, keyed by mode. Their day names are globally unique, so a
 // dropdown choice maps unambiguously to one template + mode.
-const FIXED_TEMPLATES = { phat: PHAT_DAYS, arnold: ARNOLD_DAYS, ppl: PPL_DAYS, sl5x5: STRONGLIFTS_DAYS, phul: PHUL_DAYS };
-function isFixedMode(mode) { return mode === "phat" || mode === "arnold" || mode === "ppl" || mode === "sl5x5" || mode === "phul"; }
+const FIXED_TEMPLATES = { phat: PHAT_DAYS, arnold: ARNOLD_DAYS, ppl: PPL_DAYS, sl5x5: STRONGLIFTS_DAYS, phul: PHUL_DAYS, hyrox: HYROX_DAYS };
+function isFixedMode(mode) { return mode === "phat" || mode === "arnold" || mode === "ppl" || mode === "sl5x5" || mode === "phul" || mode === "hyrox"; }
 
 // loadSuggestion that also works for machine/cable/weighted-bodyweight movements (the dynamic
 // library marks those loadable:false). Forces a load row so fixed templates can track the weight.
@@ -1488,6 +1566,7 @@ function buildArnoldSession(data, opts) { return buildFixedSession("arnold", dat
 function buildPplSession(data, opts) { return buildFixedSession("ppl", data, opts); }
 function buildStrongliftsSession(data, opts) { return buildFixedSession("sl5x5", data, opts); }
 function buildPhulSession(data, opts) { return buildFixedSession("phul", data, opts); }
+function buildHyroxSession(data, opts) { return buildFixedSession("hyrox", data, opts); }
 
 // ----------------------------------------------------------------------------
 // nSuns 531 LP — 6-day "Deadlift Focus" (from the nSuns Linear Progression workbook)
@@ -1721,6 +1800,7 @@ if (typeof module !== "undefined" && module.exports) {
     dayMuscleRegions, sessionMuscleRegions, PHAT_DAYS, buildPhatSession, phatLoadSuggestion,
     ARNOLD_DAYS, buildArnoldSession, buildFixedSession, FIXED_TEMPLATES, isFixedMode,
     PPL_DAYS, buildPplSession, STRONGLIFTS_DAYS, buildStrongliftsSession, PHUL_DAYS, buildPhulSession,
+    HYROX_DAYS, buildHyroxSession,
     NSUNS_DAYS, buildNsunsSession, nsunsTM, NSUNS_LIFT_MOVEMENT, NSUNS_LIFT_LABEL,
     T531_LIFTS, T531_WEEKS, buildT531Session,
     macrocycleWeek, macroBlockIndex, macroBlockKey, BLOCK_KEYS, BLOCK_NAMES, MACRO_BLOCKS, slotScheme,
@@ -1735,7 +1815,7 @@ if (typeof module !== "undefined" && module.exports) {
 // ============================================================================
 if (typeof document !== "undefined") {
   const STORE_KEY = "wgen.state.v1";
-  const APP_VERSION = "v29"; // keep in sync with CACHE in service-worker.js; bump on each deploy
+  const APP_VERSION = "v30"; // keep in sync with CACHE in service-worker.js; bump on each deploy
   let DATA = { movements: [], gym: {} };
   let STATE = loadState();
   let CURRENT = null; // current generated session
@@ -1827,6 +1907,8 @@ if (typeof document !== "undefined") {
       CURRENT = buildStrongliftsSession(DATA, Object.assign({ day: choice }, base));
     } else if (choice && PHUL_DAYS[choice]) {
       CURRENT = buildPhulSession(DATA, Object.assign({ day: choice }, base));
+    } else if (choice && HYROX_DAYS[choice]) {
+      CURRENT = buildHyroxSession(DATA, Object.assign({ day: choice }, base));
     } else if (choice && NSUNS_DAYS[choice]) {
       CURRENT = buildNsunsSession(DATA, Object.assign({ day: choice }, base));
     } else if (choice && T531_LIFTS[choice]) {
@@ -1900,6 +1982,7 @@ if (typeof document !== "undefined") {
     const ppl = Object.keys(PPL_DAYS).map((d) => `<option value="${d}">${d}</option>`).join("");
     const sl = Object.keys(STRONGLIFTS_DAYS).map((d) => `<option value="${d}">${d}</option>`).join("");
     const phul = Object.keys(PHUL_DAYS).map((d) => `<option value="${d}">${d}</option>`).join("");
+    const hyrox = Object.keys(HYROX_DAYS).map((d) => `<option value="${d}">${d}</option>`).join("");
     const nsuns = Object.keys(NSUNS_DAYS).map((d) => `<option value="${d}">${d}</option>`).join("");
     const t531 = Object.keys(T531_LIFTS).map((d) => `<option value="${d}">${d}</option>`).join("");
     const freestyle = `<option value="">Auto (freshest)</option>` +
@@ -1912,6 +1995,7 @@ if (typeof document !== "undefined") {
       `<optgroup label="Reddit PPL (6-day linear progression)">${ppl}</optgroup>` +
       `<optgroup label="StrongLifts 5×5 (3-day full body)">${sl}</optgroup>` +
       `<optgroup label="PHUL — Power Hypertrophy Upper Lower (4-day)">${phul}</optgroup>` +
+      `<optgroup label="Hyrox prep (weekly template)">${hyrox}</optgroup>` +
       `<optgroup label="nSuns 531 LP (6-day, % of 1RM)">${nsuns}</optgroup>` +
       `<optgroup label="5/3/1 classic (4-day wave, % of 1RM)">${t531}</optgroup>` +
       `<optgroup label="Freestyle (CrossFit-style)">${freestyle}</optgroup>`;
