@@ -1288,10 +1288,89 @@ const ARNOLD_DAYS = {
   ] },
 };
 
+// Reddit r/Fitness PPL (the "Metallicadpa" linear-progression Push/Pull/Legs for beginners).
+// Run 6 days/week (PPLxPPL). The main lifts use linear progression (add weight each session, last
+// set AMRAP); accessories use double progression in the 8–12 range. The weekly A/B alternation
+// (Deadlift vs. Barbell Row on pull; Bench- vs. OHP-primary on push) is exposed as separate days
+// you pick each week. https://thefitness.wiki/routines/r-fitness-basic-beginner-routine/
+const PPL_DAYS = {
+  "PPL — Pull (Deadlift)": { category: "upper", blocks: [
+    { name: "Main pull (linear)", role: "strength1", intensity: "heavy", items: [
+      { id: "deadlift-bb", scheme: "1×5+, 4×5", reps: 5, intensity: "heavy", weighted: true },
+    ] },
+    { name: "Back", role: "strength2", intensity: "med", items: [
+      { id: "lat-pulldown-machine", scheme: "3×8–12", reps: 10, intensity: "med", weighted: true },
+      { id: "cable-row", scheme: "3×8–12", reps: 10, intensity: "med", weighted: true },
+    ] },
+    { name: "Rear delts & arms", role: "accessory", intensity: "light", items: [
+      { id: "face-pull", scheme: "5×15–20", reps: 18, intensity: "light", weighted: true },
+      { id: "hammer-curl", scheme: "4×8–12", reps: 10, intensity: "light", weighted: true },
+      { id: "db-curl", scheme: "4×8–12", reps: 10, intensity: "light", weighted: true },
+    ] },
+  ] },
+  "PPL — Pull (Barbell Row)": { category: "upper", blocks: [
+    { name: "Main pull (linear)", role: "strength1", intensity: "heavy", items: [
+      { id: "bent-row-bb", scheme: "1×5+, 4×5", reps: 5, intensity: "heavy", weighted: true },
+    ] },
+    { name: "Back", role: "strength2", intensity: "med", items: [
+      { id: "lat-pulldown-machine", scheme: "3×8–12", reps: 10, intensity: "med", weighted: true },
+      { id: "cable-row", scheme: "3×8–12", reps: 10, intensity: "med", weighted: true },
+    ] },
+    { name: "Rear delts & arms", role: "accessory", intensity: "light", items: [
+      { id: "face-pull", scheme: "5×15–20", reps: 18, intensity: "light", weighted: true },
+      { id: "hammer-curl", scheme: "4×8–12", reps: 10, intensity: "light", weighted: true },
+      { id: "db-curl", scheme: "4×8–12", reps: 10, intensity: "light", weighted: true },
+    ] },
+  ] },
+  "PPL — Push (Bench)": { category: "upper", blocks: [
+    { name: "Main press (linear)", role: "strength1", intensity: "heavy", items: [
+      { id: "bench-press-bb", scheme: "4×5, 1×5+", reps: 5, intensity: "heavy", weighted: true },
+    ] },
+    { name: "Secondary press", role: "strength2", intensity: "med", items: [
+      { id: "strict-press-bb", scheme: "3×8–12", reps: 10, intensity: "med", weighted: true },
+      { id: "db-incline-bench", scheme: "3×8–12", reps: 10, intensity: "med", weighted: true },
+    ] },
+    { name: "Triceps & side delts (supersets)", role: "accessory", intensity: "light", items: [
+      { id: "tricep-pushdown", scheme: "3×8–12 SS", reps: 10, intensity: "light", weighted: true },
+      { id: "lateral-raise", scheme: "3×15–20 SS", reps: 15, intensity: "light", weighted: true },
+      { id: "overhead-tricep", scheme: "3×8–12 SS", reps: 10, intensity: "light", weighted: true },
+      { id: "lateral-raise", scheme: "3×15–20 SS", reps: 15, intensity: "light", weighted: true },
+    ] },
+  ] },
+  "PPL — Push (OHP)": { category: "upper", blocks: [
+    { name: "Main press (linear)", role: "strength1", intensity: "heavy", items: [
+      { id: "strict-press-bb", scheme: "4×5, 1×5+", reps: 5, intensity: "heavy", weighted: true },
+    ] },
+    { name: "Secondary press", role: "strength2", intensity: "med", items: [
+      { id: "bench-press-bb", scheme: "3×8–12", reps: 10, intensity: "med", weighted: true },
+      { id: "db-incline-bench", scheme: "3×8–12", reps: 10, intensity: "med", weighted: true },
+    ] },
+    { name: "Triceps & side delts (supersets)", role: "accessory", intensity: "light", items: [
+      { id: "tricep-pushdown", scheme: "3×8–12 SS", reps: 10, intensity: "light", weighted: true },
+      { id: "lateral-raise", scheme: "3×15–20 SS", reps: 15, intensity: "light", weighted: true },
+      { id: "overhead-tricep", scheme: "3×8–12 SS", reps: 10, intensity: "light", weighted: true },
+      { id: "lateral-raise", scheme: "3×15–20 SS", reps: 15, intensity: "light", weighted: true },
+    ] },
+  ] },
+  "PPL — Legs": { category: "lower", blocks: [
+    { name: "Main squat (linear)", role: "strength1", intensity: "heavy", items: [
+      { id: "back-squat-bb", scheme: "2×5, 1×5+", reps: 5, intensity: "heavy", weighted: true },
+    ] },
+    { name: "Posterior chain & quads", role: "strength2", intensity: "med", items: [
+      { id: "rdl-bb", scheme: "3×8–12", reps: 10, intensity: "med", weighted: true },
+      { id: "leg-press", scheme: "3×8–12", reps: 10, intensity: "med", weighted: true },
+      { id: "leg-curl", scheme: "3×8–12", reps: 10, intensity: "light", weighted: true },
+    ] },
+    { name: "Calves", role: "accessory", intensity: "light", items: [
+      { id: "calf-raise", scheme: "5×8–12", reps: 10, intensity: "light", weighted: true },
+    ] },
+  ] },
+};
+
 // The fixed/"set in stone" templates, keyed by mode. Their day names are globally unique, so a
 // dropdown choice maps unambiguously to one template + mode.
-const FIXED_TEMPLATES = { phat: PHAT_DAYS, arnold: ARNOLD_DAYS };
-function isFixedMode(mode) { return mode === "phat" || mode === "arnold"; }
+const FIXED_TEMPLATES = { phat: PHAT_DAYS, arnold: ARNOLD_DAYS, ppl: PPL_DAYS };
+function isFixedMode(mode) { return mode === "phat" || mode === "arnold" || mode === "ppl"; }
 
 // loadSuggestion that also works for machine/cable/weighted-bodyweight movements (the dynamic
 // library marks those loadable:false). Forces a load row so fixed templates can track the weight.
@@ -1328,6 +1407,7 @@ function buildFixedSession(mode, data, opts) {
 
 function buildPhatSession(data, opts) { return buildFixedSession("phat", data, opts); }
 function buildArnoldSession(data, opts) { return buildFixedSession("arnold", data, opts); }
+function buildPplSession(data, opts) { return buildFixedSession("ppl", data, opts); }
 
 // ----------------------------------------------------------------------------
 // nSuns 531 LP — 6-day "Deadlift Focus" (from the nSuns Linear Progression workbook)
@@ -1560,6 +1640,7 @@ if (typeof module !== "undefined" && module.exports) {
     PROGRAM_SEQUENCE, programSequence, nextProgramDay, dayNumber, mesocycleWeek, MESO,
     dayMuscleRegions, sessionMuscleRegions, PHAT_DAYS, buildPhatSession, phatLoadSuggestion,
     ARNOLD_DAYS, buildArnoldSession, buildFixedSession, FIXED_TEMPLATES, isFixedMode,
+    PPL_DAYS, buildPplSession,
     NSUNS_DAYS, buildNsunsSession, nsunsTM, NSUNS_LIFT_MOVEMENT, NSUNS_LIFT_LABEL,
     T531_LIFTS, T531_WEEKS, buildT531Session,
     macrocycleWeek, macroBlockIndex, macroBlockKey, BLOCK_KEYS, BLOCK_NAMES, MACRO_BLOCKS, slotScheme,
@@ -1574,7 +1655,7 @@ if (typeof module !== "undefined" && module.exports) {
 // ============================================================================
 if (typeof document !== "undefined") {
   const STORE_KEY = "wgen.state.v1";
-  const APP_VERSION = "v27"; // keep in sync with CACHE in service-worker.js; bump on each deploy
+  const APP_VERSION = "v28"; // keep in sync with CACHE in service-worker.js; bump on each deploy
   let DATA = { movements: [], gym: {} };
   let STATE = loadState();
   let CURRENT = null; // current generated session
@@ -1660,6 +1741,8 @@ if (typeof document !== "undefined") {
       CURRENT = buildPhatSession(DATA, Object.assign({ day: choice }, base));
     } else if (choice && ARNOLD_DAYS[choice]) {
       CURRENT = buildArnoldSession(DATA, Object.assign({ day: choice }, base));
+    } else if (choice && PPL_DAYS[choice]) {
+      CURRENT = buildPplSession(DATA, Object.assign({ day: choice }, base));
     } else if (choice && NSUNS_DAYS[choice]) {
       CURRENT = buildNsunsSession(DATA, Object.assign({ day: choice }, base));
     } else if (choice && T531_LIFTS[choice]) {
@@ -1730,6 +1813,7 @@ if (typeof document !== "undefined") {
     const phat = Object.keys(PHAT_DAYS).map((d) => `<option value="${d}">${d}</option>`).join("");
     const arnoldOpts = (v) => Object.keys(ARNOLD_DAYS).filter((d) => ARNOLD_DAYS[d].variation === v)
       .map((d) => `<option value="${d}">${d}</option>`).join("");
+    const ppl = Object.keys(PPL_DAYS).map((d) => `<option value="${d}">${d}</option>`).join("");
     const nsuns = Object.keys(NSUNS_DAYS).map((d) => `<option value="${d}">${d}</option>`).join("");
     const t531 = Object.keys(T531_LIFTS).map((d) => `<option value="${d}">${d}</option>`).join("");
     const freestyle = `<option value="">Auto (freshest)</option>` +
@@ -1739,6 +1823,7 @@ if (typeof document !== "undefined") {
       `<optgroup label="PHAT (fixed template)">${phat}</optgroup>` +
       `<optgroup label="Arnold Volume — Variation 1 (3-day split ×2)">${arnoldOpts(1)}</optgroup>` +
       `<optgroup label="Arnold Volume — Variation 2 (2-day split ×3)">${arnoldOpts(2)}</optgroup>` +
+      `<optgroup label="Reddit PPL (6-day linear progression)">${ppl}</optgroup>` +
       `<optgroup label="nSuns 531 LP (6-day, % of 1RM)">${nsuns}</optgroup>` +
       `<optgroup label="5/3/1 classic (4-day wave, % of 1RM)">${t531}</optgroup>` +
       `<optgroup label="Freestyle (CrossFit-style)">${freestyle}</optgroup>`;

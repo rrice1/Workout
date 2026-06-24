@@ -682,6 +682,27 @@ const empty = G.buildNsunsSession(DATA, { day: "nSuns Mon — Bench / OHP", toda
 ok("no 1RM → no weights (prompts entry)", empty.blocks[0].items[0].tm.him === null && empty.blocks[0].items[0].sets[0].him === null);
 ok("nSuns lifts are conventional barbell movements", nsAll.every(id => DATA.movements.find(m => m.id === id).implement === "barbell"));
 
+console.log("\n== Reddit PPL (linear progression) ==");
+ok("5 PPL days defined (Pull/Push A·B + Legs)", Object.keys(G.PPL_DAYS).length === 5);
+const pplAll = Object.keys(G.PPL_DAYS).flatMap(d => G.PPL_DAYS[d].blocks.flatMap(b => b.items.map(i => i.id)));
+ok("every PPL exercise resolves to a real movement", pplAll.every(id => mvIds.has(id)), pplAll.filter(id => !mvIds.has(id)).join(", "));
+ok("PPL is a fixed-template mode", G.isFixedMode("ppl"));
+const ppl = G.buildPplSession(DATA, { today, maxes: {}, settings: {}, progress: {}, slots: {}, day: "PPL — Push (Bench)" });
+ok("PPL session mode is ppl", ppl.mode === "ppl");
+ok("Push (Bench) main lift is the bench at 4×5, 1×5+", ppl.blocks[0].items[0].movement.id === "bench-press-bb" && ppl.blocks[0].items[0].prescription === "4×5, 1×5+");
+ok("OHP day main lift is the press", G.buildPplSession(DATA, { today, maxes: {}, settings: {}, progress: {}, slots: {}, day: "PPL — Push (OHP)" }).blocks[0].items[0].movement.id === "strict-press-bb");
+ok("Pull (Deadlift) vs (Barbell Row) swap only the main lift", (() => {
+  const d = G.buildPplSession(DATA, { today, maxes: {}, settings: {}, progress: {}, slots: {}, day: "PPL — Pull (Deadlift)" });
+  const r = G.buildPplSession(DATA, { today, maxes: {}, settings: {}, progress: {}, slots: {}, day: "PPL — Pull (Barbell Row)" });
+  return d.blocks[0].items[0].movement.id === "deadlift-bb" && r.blocks[0].items[0].movement.id === "bent-row-bb";
+})());
+// Machine accessories still get a tracked weight (loadable forced), like PHAT.
+ok("machine PPL accessory gets a weight field", (() => { const lp = G.buildPplSession(DATA, { today, maxes: {}, settings: {}, progress: {}, slots: {}, day: "PPL — Legs" }).blocks.flatMap(b => b.items).find(i => i.movement.id === "leg-press"); return lp && lp.load && lp.weighted === true; })());
+// A logged swap sticks.
+ok("a swapped PPL slot sticks via slots", G.buildPplSession(DATA, { today, maxes: {}, settings: {}, progress: {}, slots: { "ppl::PPL — Legs::1::1": "hack-squat" }, day: "PPL — Legs" }).blocks[1].items[1].movement.id === "hack-squat");
+// Shares like any session.
+ok("PPL session round-trips through share encode/decode", (() => { const dec = G.decodeSession(G.encodeSession(ppl), movements); return dec.mode === "ppl" && dec.blocks[0].items[0].movement.id === "bench-press-bb"; })());
+
 console.log("\n== Wendler 5/3/1 (classic) ==");
 ok("4 5/3/1 days defined (one per main lift)", Object.keys(G.T531_LIFTS).length === 4);
 ok("4 weeks defined incl. deload", Object.keys(G.T531_WEEKS).length === 4 && G.T531_WEEKS[4].deload === true);

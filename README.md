@@ -90,6 +90,13 @@ flips to **"update ready — tap to refresh"** when a newer deploy has been pick
     brutal 2-day rotation run three times a week — *Chest, Back & Legs* and *Shoulders & Arms*
     (5–6 sets per exercise, often to failure). Like PHAT these are **set in stone** but fully
     swap/log/share-able; pick any day from the dropdown for an ad-hoc session.
+  - **Reddit PPL (fixed template):** the popular r/Fitness *Metallicadpa* linear-progression
+    Push/Pull/Legs for beginners, run 6 days a week (PPLxPPL). Push, Pull, and Legs each have a
+    **main barbell lift you add weight to every session** (last set AMRAP) plus accessories in the
+    8–12 range (double progression). The program's weekly **A/B alternation** is split into pickable
+    days — *Pull (Deadlift)* vs *Pull (Barbell Row)*, *Push (Bench)* vs *Push (OHP)*, and *Legs* —
+    so you just choose the right one each session. Like the other fixed templates it's
+    swap/log/share/save-able, and machine accessories still track their weight.
   - **nSuns 531 LP (percentage-based):** the popular 6-day "deadlift focus" linear progression.
     Unlike everything else, this one is driven by **your 1-rep maxes**, not RPE. Enter a true 1RM
     for the four main lifts (Squat, Bench, Deadlift, Press) for **each person**; the app sets your
