@@ -682,6 +682,24 @@ const empty = G.buildNsunsSession(DATA, { day: "nSuns Mon — Bench / OHP", toda
 ok("no 1RM → no weights (prompts entry)", empty.blocks[0].items[0].tm.him === null && empty.blocks[0].items[0].sets[0].him === null);
 ok("nSuns lifts are conventional barbell movements", nsAll.every(id => DATA.movements.find(m => m.id === id).implement === "barbell"));
 
+console.log("\n== StrongLifts 5×5 + PHUL ==");
+ok("StrongLifts has 2 alternating workouts", Object.keys(G.STRONGLIFTS_DAYS).length === 2);
+const slAll = Object.keys(G.STRONGLIFTS_DAYS).flatMap(d => G.STRONGLIFTS_DAYS[d].blocks.flatMap(b => b.items.map(i => i.id)));
+ok("every StrongLifts lift resolves to a real movement", slAll.every(id => mvIds.has(id)), slAll.filter(id => !mvIds.has(id)).join(", "));
+const slA = G.buildStrongliftsSession(DATA, { today, maxes: {}, settings: {}, progress: {}, slots: {}, day: "StrongLifts — Workout A" });
+const slB = G.buildStrongliftsSession(DATA, { today, maxes: {}, settings: {}, progress: {}, slots: {}, day: "StrongLifts — Workout B" });
+ok("SL mode is sl5x5 and a fixed mode", slA.mode === "sl5x5" && G.isFixedMode("sl5x5"));
+ok("Workout A = squat/bench/row, all 5×5", (() => { const it = slA.blocks[0].items; return it.map(x => x.movement.id).join() === "back-squat-bb,bench-press-bb,bent-row-bb" && it.every(x => x.prescription === "5×5"); })());
+ok("Workout B = squat/press/deadlift, deadlift 1×5", (() => { const it = slB.blocks[0].items; return it.map(x => x.movement.id).join() === "back-squat-bb,strict-press-bb,deadlift-bb" && it[2].prescription === "1×5"; })());
+ok("PHUL has 4 days (2 power, 2 hypertrophy)", Object.keys(G.PHUL_DAYS).length === 4);
+const phulAll = Object.keys(G.PHUL_DAYS).flatMap(d => G.PHUL_DAYS[d].blocks.flatMap(b => b.items.map(i => i.id)));
+ok("every PHUL exercise resolves to a real movement", phulAll.every(id => mvIds.has(id)), phulAll.filter(id => !mvIds.has(id)).join(", "));
+const phul = G.buildPhulSession(DATA, { today, maxes: {}, settings: {}, progress: {}, slots: {}, day: "PHUL — Upper Power" });
+ok("PHUL mode is phul; power day opens heavy (3–5)", phul.mode === "phul" && phul.blocks[0].items[0].prescription === "3–4×3–5");
+ok("PHUL hypertrophy day uses 8–12", G.buildPhulSession(DATA, { today, maxes: {}, settings: {}, progress: {}, slots: {}, day: "PHUL — Upper Hypertrophy" }).blocks[0].items[0].prescription === "3–4×8–12");
+ok("PHUL machine accessory tracks weight", (() => { const lp = G.buildPhulSession(DATA, { today, maxes: {}, settings: {}, progress: {}, slots: {}, day: "PHUL — Lower Power" }).blocks.flatMap(b => b.items).find(i => i.movement.id === "leg-press"); return lp && lp.load && lp.weighted === true; })());
+ok("SL/PHUL round-trip through share encode/decode", G.decodeSession(G.encodeSession(slA), movements).mode === "sl5x5" && G.decodeSession(G.encodeSession(phul), movements).mode === "phul");
+
 console.log("\n== Reddit PPL (linear progression) ==");
 ok("5 PPL days defined (Pull/Push A·B + Legs)", Object.keys(G.PPL_DAYS).length === 5);
 const pplAll = Object.keys(G.PPL_DAYS).flatMap(d => G.PPL_DAYS[d].blocks.flatMap(b => b.items.map(i => i.id)));

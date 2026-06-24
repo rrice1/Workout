@@ -97,6 +97,14 @@ flips to **"update ready — tap to refresh"** when a newer deploy has been pick
     days — *Pull (Deadlift)* vs *Pull (Barbell Row)*, *Push (Bench)* vs *Push (OHP)*, and *Legs* —
     so you just choose the right one each session. Like the other fixed templates it's
     swap/log/share/save-able, and machine accessories still track their weight.
+  - **StrongLifts 5×5 (fixed template):** the classic 3-day full-body beginner barbell program.
+    Two alternating workouts — **A** (Squat / Bench / Barbell Row) and **B** (Squat / Overhead
+    Press / Deadlift) — run M/W/F as ABA then BAB. Everything is 5×5 (deadlift 1×5); add weight
+    every session and the per-set logger remembers it. The shortest-week option here.
+  - **PHUL — Power Hypertrophy Upper Lower (fixed template):** the 4-day sibling of PHAT. Two
+    **power** days (heavy compounds, 3–5 reps) and two **hypertrophy** days (8–12, more isolation):
+    Upper Power, Lower Power, Upper Hypertrophy, Lower Hypertrophy. Swap/log/share/save like the
+    other fixed templates.
   - **nSuns 531 LP (percentage-based):** the popular 6-day "deadlift focus" linear progression.
     Unlike everything else, this one is driven by **your 1-rep maxes**, not RPE. Enter a true 1RM
     for the four main lifts (Squat, Bench, Deadlift, Press) for **each person**; the app sets your

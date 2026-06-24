@@ -1367,10 +1367,88 @@ const PPL_DAYS = {
   ] },
 };
 
+// StrongLifts 5×5 — the classic 3-day full-body beginner barbell program. Two alternating
+// workouts (A: squat/bench/row, B: squat/press/deadlift) run M/W/F (ABA, then BAB). Everything is
+// 5×5 except the deadlift (1×5); add weight every session, deload 10% after three failures.
+const STRONGLIFTS_DAYS = {
+  "StrongLifts — Workout A": { category: "full", blocks: [
+    { name: "Full body (5×5, add weight each session)", role: "strength1", intensity: "heavy", items: [
+      { id: "back-squat-bb", scheme: "5×5", reps: 5, intensity: "heavy", weighted: true },
+      { id: "bench-press-bb", scheme: "5×5", reps: 5, intensity: "heavy", weighted: true },
+      { id: "bent-row-bb", scheme: "5×5", reps: 5, intensity: "heavy", weighted: true },
+    ] },
+  ] },
+  "StrongLifts — Workout B": { category: "full", blocks: [
+    { name: "Full body (5×5, add weight each session)", role: "strength1", intensity: "heavy", items: [
+      { id: "back-squat-bb", scheme: "5×5", reps: 5, intensity: "heavy", weighted: true },
+      { id: "strict-press-bb", scheme: "5×5", reps: 5, intensity: "heavy", weighted: true },
+      { id: "deadlift-bb", scheme: "1×5", reps: 5, intensity: "heavy", weighted: true },
+    ] },
+  ] },
+};
+
+// PHUL — Power Hypertrophy Upper Lower (4-day). Two power days (low reps, heavy compounds) and two
+// hypertrophy days (higher reps, more isolation). The 4-day sibling of PHAT.
+const PHUL_DAYS = {
+  "PHUL — Upper Power": { category: "upper", blocks: [
+    { name: "Press (power)", role: "strength1", intensity: "heavy", items: [
+      { id: "bench-press-bb", scheme: "3–4×3–5", reps: 5, intensity: "heavy", weighted: true },
+      { id: "db-incline-bench", scheme: "3–4×6–10", reps: 8, intensity: "med", weighted: true },
+    ] },
+    { name: "Pull (power)", role: "strength2", intensity: "heavy", items: [
+      { id: "bent-row-bb", scheme: "3–4×3–5", reps: 5, intensity: "heavy", weighted: true },
+      { id: "lat-pulldown-machine", scheme: "3–4×6–10", reps: 8, intensity: "med", weighted: true },
+    ] },
+    { name: "Shoulders & arms", role: "accessory", intensity: "light", items: [
+      { id: "strict-press-bb", scheme: "2–3×5–8", reps: 6, intensity: "med", weighted: true },
+      { id: "barbell-curl", scheme: "2–3×6–10", reps: 8, intensity: "light", weighted: true },
+      { id: "skullcrusher", scheme: "2–3×6–10", reps: 8, intensity: "light", weighted: true },
+    ] },
+  ] },
+  "PHUL — Lower Power": { category: "lower", blocks: [
+    { name: "Squat & hinge (power)", role: "strength1", intensity: "heavy", items: [
+      { id: "back-squat-bb", scheme: "3–4×3–5", reps: 5, intensity: "heavy", weighted: true },
+      { id: "deadlift-bb", scheme: "3–4×3–5", reps: 5, intensity: "heavy", weighted: true },
+    ] },
+    { name: "Quads & hamstrings", role: "strength2", intensity: "med", items: [
+      { id: "leg-press", scheme: "3–5×10–15", reps: 12, intensity: "med", weighted: true },
+      { id: "leg-curl", scheme: "3–4×6–10", reps: 8, intensity: "light", weighted: true },
+    ] },
+    { name: "Calves", role: "accessory", intensity: "light", items: [
+      { id: "calf-raise", scheme: "3–4×6–10", reps: 8, intensity: "light", weighted: true },
+    ] },
+  ] },
+  "PHUL — Upper Hypertrophy": { category: "upper", blocks: [
+    { name: "Chest & back", role: "strength2", intensity: "med", items: [
+      { id: "incline-bench-bb", scheme: "3–4×8–12", reps: 10, intensity: "med", weighted: true },
+      { id: "db-fly", scheme: "3–4×8–12", reps: 10, intensity: "light", weighted: true },
+      { id: "cable-row", scheme: "3–4×8–12", reps: 10, intensity: "med", weighted: true },
+      { id: "db-row", scheme: "3–4×8–12", reps: 10, intensity: "med", weighted: true },
+    ] },
+    { name: "Shoulders & arms", role: "accessory", intensity: "light", items: [
+      { id: "lateral-raise", scheme: "3–4×8–12", reps: 10, intensity: "light", weighted: true },
+      { id: "seated-db-curl", scheme: "3–4×8–12", reps: 10, intensity: "light", weighted: true },
+      { id: "tricep-pushdown", scheme: "3–4×8–12", reps: 10, intensity: "light", weighted: true },
+    ] },
+  ] },
+  "PHUL — Lower Hypertrophy": { category: "lower", blocks: [
+    { name: "Quads & legs", role: "strength2", intensity: "med", items: [
+      { id: "front-squat-bb", scheme: "3–4×8–12", reps: 10, intensity: "med", weighted: true },
+      { id: "walking-lunge", scheme: "3–4×8–12", reps: 10, intensity: "med", weighted: true },
+      { id: "leg-extension", scheme: "3–4×10–15", reps: 12, intensity: "light", weighted: true },
+      { id: "leg-curl", scheme: "3–4×10–15", reps: 12, intensity: "light", weighted: true },
+    ] },
+    { name: "Calves", role: "accessory", intensity: "light", items: [
+      { id: "calf-raise", scheme: "3–4×8–12", reps: 10, intensity: "light", weighted: true },
+      { id: "seated-calf", scheme: "3–4×8–12", reps: 10, intensity: "light", weighted: true },
+    ] },
+  ] },
+};
+
 // The fixed/"set in stone" templates, keyed by mode. Their day names are globally unique, so a
 // dropdown choice maps unambiguously to one template + mode.
-const FIXED_TEMPLATES = { phat: PHAT_DAYS, arnold: ARNOLD_DAYS, ppl: PPL_DAYS };
-function isFixedMode(mode) { return mode === "phat" || mode === "arnold" || mode === "ppl"; }
+const FIXED_TEMPLATES = { phat: PHAT_DAYS, arnold: ARNOLD_DAYS, ppl: PPL_DAYS, sl5x5: STRONGLIFTS_DAYS, phul: PHUL_DAYS };
+function isFixedMode(mode) { return mode === "phat" || mode === "arnold" || mode === "ppl" || mode === "sl5x5" || mode === "phul"; }
 
 // loadSuggestion that also works for machine/cable/weighted-bodyweight movements (the dynamic
 // library marks those loadable:false). Forces a load row so fixed templates can track the weight.
@@ -1408,6 +1486,8 @@ function buildFixedSession(mode, data, opts) {
 function buildPhatSession(data, opts) { return buildFixedSession("phat", data, opts); }
 function buildArnoldSession(data, opts) { return buildFixedSession("arnold", data, opts); }
 function buildPplSession(data, opts) { return buildFixedSession("ppl", data, opts); }
+function buildStrongliftsSession(data, opts) { return buildFixedSession("sl5x5", data, opts); }
+function buildPhulSession(data, opts) { return buildFixedSession("phul", data, opts); }
 
 // ----------------------------------------------------------------------------
 // nSuns 531 LP — 6-day "Deadlift Focus" (from the nSuns Linear Progression workbook)
@@ -1640,7 +1720,7 @@ if (typeof module !== "undefined" && module.exports) {
     PROGRAM_SEQUENCE, programSequence, nextProgramDay, dayNumber, mesocycleWeek, MESO,
     dayMuscleRegions, sessionMuscleRegions, PHAT_DAYS, buildPhatSession, phatLoadSuggestion,
     ARNOLD_DAYS, buildArnoldSession, buildFixedSession, FIXED_TEMPLATES, isFixedMode,
-    PPL_DAYS, buildPplSession,
+    PPL_DAYS, buildPplSession, STRONGLIFTS_DAYS, buildStrongliftsSession, PHUL_DAYS, buildPhulSession,
     NSUNS_DAYS, buildNsunsSession, nsunsTM, NSUNS_LIFT_MOVEMENT, NSUNS_LIFT_LABEL,
     T531_LIFTS, T531_WEEKS, buildT531Session,
     macrocycleWeek, macroBlockIndex, macroBlockKey, BLOCK_KEYS, BLOCK_NAMES, MACRO_BLOCKS, slotScheme,
@@ -1655,7 +1735,7 @@ if (typeof module !== "undefined" && module.exports) {
 // ============================================================================
 if (typeof document !== "undefined") {
   const STORE_KEY = "wgen.state.v1";
-  const APP_VERSION = "v28"; // keep in sync with CACHE in service-worker.js; bump on each deploy
+  const APP_VERSION = "v29"; // keep in sync with CACHE in service-worker.js; bump on each deploy
   let DATA = { movements: [], gym: {} };
   let STATE = loadState();
   let CURRENT = null; // current generated session
@@ -1743,6 +1823,10 @@ if (typeof document !== "undefined") {
       CURRENT = buildArnoldSession(DATA, Object.assign({ day: choice }, base));
     } else if (choice && PPL_DAYS[choice]) {
       CURRENT = buildPplSession(DATA, Object.assign({ day: choice }, base));
+    } else if (choice && STRONGLIFTS_DAYS[choice]) {
+      CURRENT = buildStrongliftsSession(DATA, Object.assign({ day: choice }, base));
+    } else if (choice && PHUL_DAYS[choice]) {
+      CURRENT = buildPhulSession(DATA, Object.assign({ day: choice }, base));
     } else if (choice && NSUNS_DAYS[choice]) {
       CURRENT = buildNsunsSession(DATA, Object.assign({ day: choice }, base));
     } else if (choice && T531_LIFTS[choice]) {
@@ -1814,6 +1898,8 @@ if (typeof document !== "undefined") {
     const arnoldOpts = (v) => Object.keys(ARNOLD_DAYS).filter((d) => ARNOLD_DAYS[d].variation === v)
       .map((d) => `<option value="${d}">${d}</option>`).join("");
     const ppl = Object.keys(PPL_DAYS).map((d) => `<option value="${d}">${d}</option>`).join("");
+    const sl = Object.keys(STRONGLIFTS_DAYS).map((d) => `<option value="${d}">${d}</option>`).join("");
+    const phul = Object.keys(PHUL_DAYS).map((d) => `<option value="${d}">${d}</option>`).join("");
     const nsuns = Object.keys(NSUNS_DAYS).map((d) => `<option value="${d}">${d}</option>`).join("");
     const t531 = Object.keys(T531_LIFTS).map((d) => `<option value="${d}">${d}</option>`).join("");
     const freestyle = `<option value="">Auto (freshest)</option>` +
@@ -1824,6 +1910,8 @@ if (typeof document !== "undefined") {
       `<optgroup label="Arnold Volume — Variation 1 (3-day split ×2)">${arnoldOpts(1)}</optgroup>` +
       `<optgroup label="Arnold Volume — Variation 2 (2-day split ×3)">${arnoldOpts(2)}</optgroup>` +
       `<optgroup label="Reddit PPL (6-day linear progression)">${ppl}</optgroup>` +
+      `<optgroup label="StrongLifts 5×5 (3-day full body)">${sl}</optgroup>` +
+      `<optgroup label="PHUL — Power Hypertrophy Upper Lower (4-day)">${phul}</optgroup>` +
       `<optgroup label="nSuns 531 LP (6-day, % of 1RM)">${nsuns}</optgroup>` +
       `<optgroup label="5/3/1 classic (4-day wave, % of 1RM)">${t531}</optgroup>` +
       `<optgroup label="Freestyle (CrossFit-style)">${freestyle}</optgroup>`;
