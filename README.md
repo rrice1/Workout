@@ -1,9 +1,12 @@
 # Workout Generator
 
-A phone-friendly **PWA** that generates CrossFit/Hyrox-style sessions and rotates movement
-patterns so you don't overwork anything from earlier in the week. It tracks your loads,
-suggests his/hers weights you can actually load with your gym's equipment, and keeps supersets
-in the same area of the gym so you're not crossing the floor mid-set.
+A phone-friendly **PWA** for two people who train together. It runs a **periodized
+strength/hypertrophy program** (a 6–7 day split inside a 4-week wave inside a 12-week macrocycle)
+or a **freestyle CrossFit/Hyrox mode**, rotating movement patterns so you don't overwork anything
+from earlier in the week. It tracks each person's loads, suggests **his/hers** weights you can
+actually load with your gym's equipment, keeps supersets in the same area of the gym, steers
+around the **crowded** zones on busy days, and lets you **share** a workout between phones. No app
+store, no build, no backend.
 
 ## What's here
 
@@ -26,7 +29,8 @@ cd app
 python -m http.server 8000
 ```
 
-Then open <http://localhost:8000> and click **Generate today**.
+Then open <http://localhost:8000> and use **Generate Next Workout** (program) or **Generate**
+(freestyle).
 
 Run the logic self-check with `node app/test.js`.
 
@@ -40,7 +44,9 @@ iOS needs **https** for offline mode, so host the `app/` folder with GitHub Page
 3. It now has its own icon, runs full-screen, and works **offline**.
 
 No App Store, no build, no signing, no expiry. To update later, edit the files and push — bump
-`CACHE` in `service-worker.js` to force the offline cache to refresh.
+both `CACHE` in `service-worker.js` and `APP_VERSION` in `app.js` so the offline cache refreshes
+and the version stamp updates. The app shows the current version at the bottom of the screen, and
+flips to **"update ready — tap to refresh"** when a newer deploy has been picked up.
 
 ## Using it
 
@@ -66,15 +72,22 @@ No App Store, no build, no signing, no expiry. To update later, edit the files a
   — with a `2×8` backoff and no finisher. Logging the test updates your **estimated 1RM**
   (≈ 3RM × 1.10) for future percentage-based suggestions. Hypertrophy days and Block 1/3 are
   never turned into tests.
-- The **This week so far** card shows **hard sets per muscle vs target** and cardio exposures,
+- The **This week so far** card shows **working sets per muscle vs target** and cardio exposures,
   so you can see what's under- or over-trained across the week.
 - Or **pick manually** from the dropdown — two families:
   - **Program (prescriptive split):** Push Strength, Lower Strength — Squat, Pull Strength,
     Conditioning + Core, Upper Hypertrophy, Lower Hypertrophy — Hinge, Pump / Recovery. Each day
     has a clear identity, its own block structure, forbidden patterns (e.g. no legs on push day),
     and an intensity cap — built for training 6–7 days/week without frying yourself.
+  - **PHAT (fixed template):** Layne Norton's *Power Hypertrophy Adaptive Training* — Upper Power,
+    Lower Power, Back & Shoulders Hypertrophy, Lower Hypertrophy, Chest & Arms Hypertrophy (Day 3
+    is rest). Unlike the dynamic program these are **set in stone** — the exact exercises and
+    sets/reps every time — but you can still **swap** any movement (the swap sticks), log weights
+    (including on machines/cables), and share/save it. Pick the day from the dropdown.
   - **Freestyle (CrossFit-style):** the original generator — Warm Up → Strength 1 → Strength 2
     superset → MetCon. Leave it on *Auto* to pick the freshest focus, or choose a specific one.
+- **Warm-ups match the day:** the warm-up only pulls mobility/prep for the regions you're about to
+  train (plus generally-useful full-body moves) — no hip openers before a bench day.
 - Each loadable move shows **You / Her** weights, snapped to what you can actually load (DB
   ladder, plate pairs, KB kg steps). **Tap a weight (✎) to edit** — it's saved as your working
   weight for next time.
@@ -118,6 +131,9 @@ No App Store, no build, no signing, no expiry. To update later, edit the files a
   one lift instead of scattering. Swap any time — the swapped movement becomes the new slot pick.
 - **Export backup** saves your data to a JSON file; **Import** loads it. Data lives on the
   device, so drive each session from one phone and use export/import to sync the other.
+- **Version check:** the app version shows at the bottom of the screen; it flips to
+  **"update ready — tap to refresh"** when a newer deploy is available, so you can tell whether
+  each phone is on the latest.
 
 ## Configuring your gym
 

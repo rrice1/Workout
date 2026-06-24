@@ -595,9 +595,37 @@ ok("share omits loads (weights stay personal)", decoded.blocks.every(b => b.item
 
 console.log("\n== Dumbbells available in Zone B (except bench moves) ==");
 const dbMoves = movements.filter(m => m.implement === "dumbbell");
-ok("dumbbell moves can be done in Zone B", dbMoves.filter(m => (m.zones || []).includes("B")).length === dbMoves.length - 3);
+ok("dumbbell moves can be done in Zone B (except bench-based ones)", dbMoves.filter(m => !(m.zones || []).includes("B")).every(m => ["db-bench", "db-incline-bench", "db-fly", "spider-curl"].includes(m.id)), dbMoves.filter(m => !(m.zones || []).includes("B")).map(m => m.id).join(", "));
 ok("bench-requiring DB moves stay out of Zone B", ["db-bench", "db-incline-bench", "db-fly"].every(id => !(movements.find(m => m.id === id).zones || []).includes("B")));
 ok("nothing is named 'Echo' anymore", movements.every(m => !/Echo/i.test(m.name)));
+
+console.log("\n== PHAT fixed template ==");
+ok("5 PHAT days defined (Day 3 is rest)", Object.keys(G.PHAT_DAYS).length === 5);
+const phatAll = Object.keys(G.PHAT_DAYS).flatMap(d => G.PHAT_DAYS[d].blocks.flatMap(b => b.items.map(i => i.id)));
+const mvIds = new Set(movements.map(m => m.id));
+ok("every PHAT exercise resolves to a real movement", phatAll.every(id => mvIds.has(id)), phatAll.filter(id => !mvIds.has(id)).join(", "));
+const phat = G.buildPhatSession(DATA, { today, maxes: {}, settings: {}, progress: {}, slots: {}, day: "PHAT — Upper Power" });
+ok("PHAT session mode is phat", phat.mode === "phat");
+ok("PHAT is set in stone: power row is Pendlay 3×3–5", phat.blocks[0].items[0].movement.id === "pendlay-row-bb" && phat.blocks[0].items[0].prescription === "3×3–5");
+// Deterministic — no seed variance.
+const phat2 = G.buildPhatSession(DATA, { today, maxes: {}, settings: {}, progress: {}, slots: {}, day: "PHAT — Upper Power", seed: 999 });
+ok("PHAT is deterministic (same movements regardless of seed)",
+  JSON.stringify(phat.blocks.flatMap(b => b.items.map(i => i.movement.id))) === JSON.stringify(phat2.blocks.flatMap(b => b.items.map(i => i.movement.id))));
+// Machine/weighted-bodyweight items still get a weight field; pure bodyweight (rack chin) doesn't.
+const lowH = G.buildPhatSession(DATA, { today, maxes: {}, settings: {}, progress: {}, slots: {}, day: "PHAT — Lower Hypertrophy" });
+const hack = lowH.blocks.flatMap(b => b.items).find(i => i.movement.id === "hack-squat");
+ok("machine PHAT item gets a weight field (loadable forced)", hack && hack.load && hack.weighted === true);
+const rackChin = phat.blocks.flatMap(b => b.items).find(i => i.movement.id === "rack-chin");
+ok("bodyweight PHAT item has no weight field", rackChin && rackChin.load === null && rackChin.weighted === false);
+// A logged swap sticks (set in stone otherwise).
+const swapped = G.buildPhatSession(DATA, { today, maxes: {}, settings: {}, progress: {}, slots: { "phat::PHAT — Upper Power::0::0": "bent-row-bb" }, day: "PHAT — Upper Power" });
+ok("a swapped PHAT slot sticks via slots", swapped.blocks[0].items[0].movement.id === "bent-row-bb");
+// PHAT movements stay out of the dynamic program.
+ok("PHAT-only movements are programDefault:false", ["weighted-pull-up", "rack-chin", "ez-bar-curl", "preacher-curl", "lying-leg-curl"].every(id => movements.find(m => m.id === id).programDefault === false));
+// PHAT shares like any session (plan round-trips).
+const phatCode = G.encodeSession(phat);
+const phatDecoded = G.decodeSession(phatCode, movements);
+ok("PHAT session round-trips through share encode/decode", phatDecoded.mode === "phat" && phatDecoded.blocks[0].items[0].movement.id === "pendlay-row-bb");
 
 console.log(`\n==== ${pass} passed, ${fail} failed ====`);
 process.exit(fail ? 1 : 0);

@@ -1065,6 +1065,128 @@ function buildProgramSession(data, opts) {
   return { date: today, focus: opts.day, mode: "program", category: cfg.category, zonePath: path, blocks, seed: opts.seed || 1 };
 }
 
+// ----------------------------------------------------------------------------
+// PHAT: a fixed template (Layne Norton's Power Hypertrophy Adaptive Training). Unlike the
+// dynamic program, the exercises are set in stone — but each slot still remembers a swap, tracks
+// loads per person, and logs like any other session. Day 3 is rest (not a generated workout).
+// ----------------------------------------------------------------------------
+const PHAT_DAYS = {
+  "PHAT — Upper Power": { category: "upper", blocks: [
+    { name: "Pull (power + assistance)", role: "strength1", items: [
+      { id: "pendlay-row-bb", scheme: "3×3–5", reps: 5, intensity: "heavy", weighted: true },
+      { id: "weighted-pull-up", scheme: "2×6–10", reps: 8, intensity: "med", weighted: true },
+      { id: "rack-chin", scheme: "2×6–10", reps: 8, intensity: "med", weighted: false },
+    ] },
+    { name: "Press (power + assistance)", role: "strength1", items: [
+      { id: "db-bench", scheme: "3×3–5", reps: 5, intensity: "heavy", weighted: true },
+      { id: "weighted-dip", scheme: "2×6–10", reps: 8, intensity: "med", weighted: true },
+      { id: "db-shoulder-press", scheme: "3×6–10", reps: 8, intensity: "med", weighted: true },
+    ] },
+    { name: "Arms", role: "accessory", items: [
+      { id: "ez-bar-curl", scheme: "3×6–10", reps: 8, intensity: "light", weighted: true },
+      { id: "skullcrusher", scheme: "3×6–10", reps: 8, intensity: "light", weighted: true },
+    ] },
+  ] },
+  "PHAT — Lower Power": { category: "lower", blocks: [
+    { name: "Squat (power)", role: "strength1", items: [
+      { id: "back-squat-bb", scheme: "3×3–5", reps: 5, intensity: "heavy", weighted: true },
+    ] },
+    { name: "Quads", role: "strength2", items: [
+      { id: "hack-squat", scheme: "2×6–10", reps: 8, intensity: "med", weighted: true },
+      { id: "leg-extension", scheme: "2×6–10", reps: 8, intensity: "light", weighted: true },
+    ] },
+    { name: "Posterior chain", role: "strength2", items: [
+      { id: "stiff-leg-deadlift-bb", scheme: "3×5–8", reps: 6, intensity: "med", weighted: true },
+      { id: "lying-leg-curl", scheme: "2×6–10", reps: 8, intensity: "light", weighted: true },
+    ] },
+    { name: "Calves", role: "accessory", items: [
+      { id: "calf-raise", scheme: "3×6–10", reps: 8, intensity: "light", weighted: true },
+      { id: "seated-calf", scheme: "2×6–10", reps: 8, intensity: "light", weighted: true },
+    ] },
+  ] },
+  "PHAT — Back & Shoulders Hypertrophy": { category: "upper", blocks: [
+    { name: "Back", role: "strength2", items: [
+      { id: "pendlay-row-bb", scheme: "6×3 @ 65–70% of 3RM (speed)", reps: 3, intensity: "med", weighted: true },
+      { id: "rack-chin", scheme: "3×8–12", reps: 10, intensity: "med", weighted: false },
+      { id: "cable-row", scheme: "3×8–12", reps: 10, intensity: "med", weighted: true },
+      { id: "db-row", scheme: "2×12–15", reps: 12, intensity: "light", weighted: true },
+      { id: "close-grip-pulldown", scheme: "2×15–20", reps: 15, intensity: "light", weighted: true },
+    ] },
+    { name: "Shoulders", role: "accessory", items: [
+      { id: "db-shoulder-press", scheme: "3×8–12", reps: 10, intensity: "med", weighted: true },
+      { id: "upright-row", scheme: "2×12–15", reps: 12, intensity: "light", weighted: true },
+      { id: "lateral-raise", scheme: "3×12–20", reps: 15, intensity: "light", weighted: true },
+    ] },
+  ] },
+  "PHAT — Lower Hypertrophy": { category: "lower", blocks: [
+    { name: "Squat (speed)", role: "strength2", items: [
+      { id: "back-squat-bb", scheme: "6×3 @ 65–70% of 3RM (speed)", reps: 3, intensity: "med", weighted: true },
+    ] },
+    { name: "Quads", role: "strength2", items: [
+      { id: "hack-squat", scheme: "3×8–12", reps: 10, intensity: "med", weighted: true },
+      { id: "leg-press", scheme: "2×12–15", reps: 12, intensity: "med", weighted: true },
+      { id: "leg-extension", scheme: "3×15–20", reps: 15, intensity: "light", weighted: true },
+    ] },
+    { name: "Hamstrings", role: "strength2", items: [
+      { id: "rdl-bb", scheme: "3×8–12", reps: 10, intensity: "med", weighted: true },
+      { id: "lying-leg-curl", scheme: "2×12–15", reps: 12, intensity: "light", weighted: true },
+      { id: "leg-curl", scheme: "2×15–20", reps: 15, intensity: "light", weighted: true },
+    ] },
+    { name: "Calves", role: "accessory", items: [
+      { id: "donkey-calf-raise", scheme: "4×10–15", reps: 12, intensity: "light", weighted: true },
+      { id: "seated-calf", scheme: "3×15–20", reps: 15, intensity: "light", weighted: true },
+    ] },
+  ] },
+  "PHAT — Chest & Arms Hypertrophy": { category: "upper", blocks: [
+    { name: "Chest", role: "strength2", items: [
+      { id: "db-bench", scheme: "6×3 @ 65–70% of 3RM (speed)", reps: 3, intensity: "med", weighted: true },
+      { id: "db-incline-bench", scheme: "3×8–12", reps: 10, intensity: "med", weighted: true },
+      { id: "chest-press-machine", scheme: "3×12–15", reps: 12, intensity: "med", weighted: true },
+      { id: "cable-fly", scheme: "2×15–20", reps: 15, intensity: "light", weighted: true },
+    ] },
+    { name: "Biceps", role: "accessory", items: [
+      { id: "preacher-curl", scheme: "3×8–12", reps: 10, intensity: "light", weighted: true },
+      { id: "concentration-curl", scheme: "2×12–15", reps: 12, intensity: "light", weighted: true },
+      { id: "spider-curl", scheme: "2×15–20", reps: 15, intensity: "light", weighted: true },
+    ] },
+    { name: "Triceps", role: "accessory", items: [
+      { id: "seated-oh-tricep-ext", scheme: "3×8–12", reps: 10, intensity: "light", weighted: true },
+      { id: "tricep-pushdown", scheme: "2×12–15", reps: 12, intensity: "light", weighted: true },
+      { id: "cable-kickback", scheme: "2×15–20", reps: 15, intensity: "light", weighted: true },
+    ] },
+  ] },
+};
+
+// loadSuggestion that also works for machine/cable/weighted-bodyweight movements (the dynamic
+// library marks those loadable:false). Forces a load row so PHAT can track the weight you used.
+function phatLoadSuggestion(m, reps, maxes, settings, inv, progress) {
+  return loadSuggestion(m.loadable ? m : Object.assign({}, m, { loadable: true }), reps, maxes, settings, inv, progress);
+}
+
+function buildPhatSession(data, opts) {
+  const { movements, gym } = data;
+  const today = opts.today;
+  const maxes = opts.maxes || {}, settings = opts.settings || {}, progress = opts.progress || {}, inv = gym.inventory;
+  const slots = opts.slots || {};
+  const cfg = PHAT_DAYS[opts.day];
+  if (!cfg) throw new Error("Unknown PHAT day: " + opts.day);
+  const byId = {}; for (const m of movements) byId[m.id] = m;
+  const blocks = cfg.blocks.map((bk, bi) => ({
+    name: bk.name, role: bk.role || "strength2", intensity: bk.intensity || "med",
+    items: bk.items.map((spec, ii) => {
+      const sk = `phat::${opts.day}::${bi}::${ii}`;
+      // A logged swap sticks (set in stone otherwise).
+      const mid = (slots[sk] && byId[slots[sk]]) ? slots[sk] : spec.id;
+      const m = byId[mid] || byId[spec.id];
+      const load = spec.weighted ? phatLoadSuggestion(m, spec.reps || 8, maxes, settings, inv, progress) : null;
+      return { movement: m, prescription: spec.scheme, load, slotKey: sk, intensity: spec.intensity, weighted: !!spec.weighted };
+    }),
+  }));
+  assignZones(gym, blocks);
+  const path = blocks.map((bk) => bk.zone).filter((z, i, a) => z && (i === 0 || z !== a[i - 1]));
+  return { date: today, focus: opts.day, mode: "phat", category: cfg.category, zonePath: path, blocks, seed: opts.seed || 1 };
+}
+
 
 // Assign each block the zone that ALL its movements share (honest label). If the
 // movements don't share a single zone (e.g. a superset straddling B and C), leave
@@ -1096,9 +1218,9 @@ function sessionToHistoryEntry(session) {
   const items = [];
   for (const bk of session.blocks) {
     const role = bk.role || blockRole(bk.name);
-    const intensity = bk.intensity || ROLE_INTENSITY[role] || "light";
+    const blockIntensity = bk.intensity || ROLE_INTENSITY[role] || "light";
     for (const it of bk.items) {
-      items.push({ movementId: it.movement.id, pattern: it.movement.pattern, muscles: it.movement.muscles || [], intensity, role, sets: parseSets(it.prescription) });
+      items.push({ movementId: it.movement.id, pattern: it.movement.pattern, muscles: it.movement.muscles || [], intensity: it.intensity || blockIntensity, role, sets: parseSets(it.prescription) });
     }
   }
   return { date: session.date, focus: session.focus, items };
@@ -1150,7 +1272,7 @@ if (typeof module !== "undefined" && module.exports) {
     tierBonus, PATTERN_REGION, isBusyDay, stuckInCrowd, crowdPenalty,
     pairZoneDistance, prescribe, computeTargetRegions, FOCUSES, PROGRAM_DAYS,
     PROGRAM_SEQUENCE, programSequence, nextProgramDay, dayNumber, mesocycleWeek, MESO,
-    dayMuscleRegions, sessionMuscleRegions,
+    dayMuscleRegions, sessionMuscleRegions, PHAT_DAYS, buildPhatSession, phatLoadSuggestion,
     macrocycleWeek, macroBlockIndex, macroBlockKey, BLOCK_KEYS, BLOCK_NAMES, MACRO_BLOCKS, slotScheme,
     isTestWeek, estimate1RM, TEST_MAIN_SCHEME,
     weeklySets, parseSets, VOLUME_TARGETS,
@@ -1163,7 +1285,7 @@ if (typeof module !== "undefined" && module.exports) {
 // ============================================================================
 if (typeof document !== "undefined") {
   const STORE_KEY = "wgen.state.v1";
-  const APP_VERSION = "v22"; // keep in sync with CACHE in service-worker.js; bump on each deploy
+  const APP_VERSION = "v23"; // keep in sync with CACHE in service-worker.js; bump on each deploy
   let DATA = { movements: [], gym: {} };
   let STATE = loadState();
   let CURRENT = null; // current generated session
@@ -1245,7 +1367,9 @@ if (typeof document !== "undefined") {
   function generate(choice) {
     const seed = (Date.now() & 0xffffffff) ^ Math.floor(Math.random() * 1e9);
     const base = { today: todayStr(), history: STATE.history, maxes: STATE.maxes, progress: STATE.progress || {}, slots: STATE.slots || {}, settings: STATE.settings, avoidList: STATE.avoidList, seed };
-    if (choice && PROGRAM_DAYS[choice]) {
+    if (choice && PHAT_DAYS[choice]) {
+      CURRENT = buildPhatSession(DATA, Object.assign({ day: choice }, base));
+    } else if (choice && PROGRAM_DAYS[choice]) {
       CURRENT = buildProgramSession(DATA, Object.assign({ day: choice, mesoWeek: mesocycleWeek(STATE.program), macroBlock: macroBlockKey(STATE.program) }, base));
     } else {
       // Freestyle CrossFit-style: a legacy focus name, or undefined for auto.
@@ -1308,10 +1432,12 @@ if (typeof document !== "undefined") {
   function renderFocusPicker() {
     const sel = document.getElementById("focusSelect");
     const program = Object.keys(PROGRAM_DAYS).map((d) => `<option value="${d}">${d}</option>`).join("");
+    const phat = Object.keys(PHAT_DAYS).map((d) => `<option value="${d}">${d}</option>`).join("");
     const freestyle = `<option value="">Auto (freshest)</option>` +
       Object.keys(FOCUSES).map((f) => `<option value="${f}">${f}</option>`).join("");
     sel.innerHTML =
       `<optgroup label="Program (prescriptive split)">${program}</optgroup>` +
+      `<optgroup label="PHAT (fixed template)">${phat}</optgroup>` +
       `<optgroup label="Freestyle (CrossFit-style)">${freestyle}</optgroup>`;
     // Restore the last chosen workout so it sticks across reloads.
     sel.value = (STATE.settings && STATE.settings.lastFocus) || "";
@@ -1330,7 +1456,8 @@ if (typeof document !== "undefined") {
     const pathStr = CURRENT.zonePath.map((z) => `${z}·${DATA.gym.zones[z].name}`).join("  →  ");
     const crowd = DATA.gym.crowd;
     const busy = crowd && isBusyDay(["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][new Date(todayStr() + "T00:00:00").getDay()], crowd);
-    const busyNote = busy ? `<div class="testnote">🚦 Busy day — steering away from the crowded ${(crowd.crowdedZones || []).map((z) => `Zone ${z}`).join("/")} (bench/DB &amp; machines) toward the rigs, open floor &amp; cardio.</div>` : "";
+    // The crowd steer only applies to the dynamic generator, not the fixed PHAT template.
+    const busyNote = (busy && CURRENT.mode !== "phat") ? `<div class="testnote">🚦 Busy day — steering away from the crowded ${(crowd.crowdedZones || []).map((z) => `Zone ${z}`).join("/")} (bench/DB &amp; machines) toward the rigs, open floor &amp; cardio.</div>` : "";
     const wl = sessionWorkload(CURRENT);
     const sharedNote = CURRENT.shared ? `<div class="testnote">📲 Shared workout loaded — enter your own weights.</div>` : "";
     let html = `<div class="sesshead"><h2>${CURRENT.focus}</h2><div class="path">Path: ${pathStr}</div>${busyNote}${sharedNote}` +
@@ -1558,18 +1685,26 @@ if (typeof document !== "undefined") {
     // In program mode, keep swaps within the conventional pool too.
     if (CURRENT.mode === "program") cands = cands.filter((m) => m.programDefault !== false);
     if (!cands.length) { alert("No same-region alternative available."); return; }
+    snapshot();
     const next = cands[0];
     const slot = slotForRole(role);
-    const reps = slot === "strength1" ? 3 : (next.pattern === "core" ? 12 : 10);
+    const isPhat = CURRENT.mode === "phat";
+    // PHAT is a fixed template — keep the prescribed scheme on a swap, just change the movement.
+    const keepScheme = isPhat || slot === "strength1";
+    const reps = isPhat ? (+((String(item.prescription).match(/[×x]\s*(\d+)/) || [])[1]) || 8)
+      : (slot === "strength1" ? 3 : (next.pattern === "core" ? 12 : 10));
+    const load = isPhat
+      ? (item.weighted ? phatLoadSuggestion(next, reps, STATE.maxes, STATE.settings, DATA.gym.inventory, STATE.progress || {}) : null)
+      : loadSuggestion(next, reps, STATE.maxes, STATE.settings, DATA.gym.inventory, STATE.progress || {});
     CURRENT.blocks[bi].items[ii] = {
       movement: next,
-      // Keep the main-lift scheme on S1 swaps; otherwise recompute (handles time/distance moves).
-      prescription: slot === "strength1" ? item.prescription : prescribe(next, slot, Math.random),
-      load: loadSuggestion(next, reps, STATE.maxes, STATE.settings, DATA.gym.inventory, STATE.progress || {}),
+      prescription: keepScheme ? item.prescription : prescribe(next, slot, Math.random),
+      load,
       slotKey: item.slotKey, // keep the slot so logging records the swapped movement for next time
+      weighted: item.weighted,
+      intensity: item.intensity,
     };
-    assignZones(DATA.gym, CURRENT.blocks);
-    CURRENT.zonePath = CURRENT.blocks.map((b) => b.zone).filter((z, i, a) => z && (i === 0 || z !== a[i - 1]));
+    recomputeZones();
     renderSession();
   }
 
@@ -1678,7 +1813,8 @@ if (typeof document !== "undefined") {
       const role = b.role || "";
       b.items.forEach((it, ii) => {
         if (role === "warmup" || role === "mobility" || it.movement.pattern === "mobility") return;
-        rows.push({ bi, ii, it, tt: trackingType(it.movement) });
+        // PHAT marks machine/cable/weighted-bodyweight items weighted so they log a weight too.
+        rows.push({ bi, ii, it, tt: it.weighted ? "load_reps" : trackingType(it.movement) });
       });
     });
 
