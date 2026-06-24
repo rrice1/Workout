@@ -1523,10 +1523,61 @@ const HYROX_DAYS = {
   ] },
 };
 
+// GZCLP — the GZCL-method linear progression for beginners. Each day has a T1 (main, heavy, low
+// reps, last set AMRAP — progress 5×3 → 6×2 → 10×1 on a stall), a T2 (secondary, volume:
+// 3×10 → 3×8 → 3×6), and a T3 (accessory, 3×15+ AMRAP). Four sessions rotate A1/A2/B1/B2. Add
+// weight each session; it's tracked by logging, like the other linear-progression templates.
+const GZCLP_DAYS = {
+  "GZCLP — A1 (Squat / Bench)": { category: "lower", blocks: [
+    { name: "T1 — main (5×3+, then 6×2 / 10×1 on a stall)", role: "strength1", intensity: "heavy", items: [
+      { id: "back-squat-bb", scheme: "5×3+", reps: 3, intensity: "heavy", weighted: true },
+    ] },
+    { name: "T2 — secondary volume (3×10 → 3×8 → 3×6)", role: "strength2", intensity: "med", items: [
+      { id: "bench-press-bb", scheme: "3×10", reps: 10, intensity: "med", weighted: true },
+    ] },
+    { name: "T3 — accessory (3×15+)", role: "accessory", intensity: "light", items: [
+      { id: "lat-pulldown-machine", scheme: "3×15+", reps: 15, intensity: "light", weighted: true },
+    ] },
+  ] },
+  "GZCLP — A2 (OHP / Deadlift)": { category: "upper", blocks: [
+    { name: "T1 — main (5×3+, then 6×2 / 10×1 on a stall)", role: "strength1", intensity: "heavy", items: [
+      { id: "strict-press-bb", scheme: "5×3+", reps: 3, intensity: "heavy", weighted: true },
+    ] },
+    { name: "T2 — secondary volume (3×10 → 3×8 → 3×6)", role: "strength2", intensity: "med", items: [
+      { id: "deadlift-bb", scheme: "3×10", reps: 10, intensity: "med", weighted: true },
+    ] },
+    { name: "T3 — accessory (3×15+)", role: "accessory", intensity: "light", items: [
+      { id: "cable-row", scheme: "3×15+", reps: 15, intensity: "light", weighted: true },
+    ] },
+  ] },
+  "GZCLP — B1 (Bench / Squat)": { category: "upper", blocks: [
+    { name: "T1 — main (5×3+, then 6×2 / 10×1 on a stall)", role: "strength1", intensity: "heavy", items: [
+      { id: "bench-press-bb", scheme: "5×3+", reps: 3, intensity: "heavy", weighted: true },
+    ] },
+    { name: "T2 — secondary volume (3×10 → 3×8 → 3×6)", role: "strength2", intensity: "med", items: [
+      { id: "back-squat-bb", scheme: "3×10", reps: 10, intensity: "med", weighted: true },
+    ] },
+    { name: "T3 — accessory (3×15+)", role: "accessory", intensity: "light", items: [
+      { id: "lat-pulldown-machine", scheme: "3×15+", reps: 15, intensity: "light", weighted: true },
+    ] },
+  ] },
+  "GZCLP — B2 (Deadlift / OHP)": { category: "lower", blocks: [
+    { name: "T1 — main (5×3+, then 6×2 / 10×1 on a stall)", role: "strength1", intensity: "heavy", items: [
+      { id: "deadlift-bb", scheme: "5×3+", reps: 3, intensity: "heavy", weighted: true },
+    ] },
+    { name: "T2 — secondary volume (3×10 → 3×8 → 3×6)", role: "strength2", intensity: "med", items: [
+      { id: "strict-press-bb", scheme: "3×10", reps: 10, intensity: "med", weighted: true },
+    ] },
+    { name: "T3 — accessory (3×15+)", role: "accessory", intensity: "light", items: [
+      { id: "cable-row", scheme: "3×15+", reps: 15, intensity: "light", weighted: true },
+    ] },
+  ] },
+};
+
 // The fixed/"set in stone" templates, keyed by mode. Their day names are globally unique, so a
 // dropdown choice maps unambiguously to one template + mode.
-const FIXED_TEMPLATES = { phat: PHAT_DAYS, arnold: ARNOLD_DAYS, ppl: PPL_DAYS, sl5x5: STRONGLIFTS_DAYS, phul: PHUL_DAYS, hyrox: HYROX_DAYS };
-function isFixedMode(mode) { return mode === "phat" || mode === "arnold" || mode === "ppl" || mode === "sl5x5" || mode === "phul" || mode === "hyrox"; }
+const FIXED_TEMPLATES = { phat: PHAT_DAYS, arnold: ARNOLD_DAYS, ppl: PPL_DAYS, sl5x5: STRONGLIFTS_DAYS, phul: PHUL_DAYS, hyrox: HYROX_DAYS, gzclp: GZCLP_DAYS };
+function isFixedMode(mode) { return mode === "phat" || mode === "arnold" || mode === "ppl" || mode === "sl5x5" || mode === "phul" || mode === "hyrox" || mode === "gzclp"; }
 
 // loadSuggestion that also works for machine/cable/weighted-bodyweight movements (the dynamic
 // library marks those loadable:false). Forces a load row so fixed templates can track the weight.
@@ -1567,6 +1618,7 @@ function buildPplSession(data, opts) { return buildFixedSession("ppl", data, opt
 function buildStrongliftsSession(data, opts) { return buildFixedSession("sl5x5", data, opts); }
 function buildPhulSession(data, opts) { return buildFixedSession("phul", data, opts); }
 function buildHyroxSession(data, opts) { return buildFixedSession("hyrox", data, opts); }
+function buildGzclpSession(data, opts) { return buildFixedSession("gzclp", data, opts); }
 
 // ----------------------------------------------------------------------------
 // nSuns 531 LP — 6-day "Deadlift Focus" (from the nSuns Linear Progression workbook)
@@ -1575,8 +1627,8 @@ function buildHyroxSession(data, opts) { return buildFixedSession("hyrox", data,
 // max (TM) = 90% of it (rounded to 5), and EVERY set is a fixed % of the relevant lift's TM,
 // snapped to a loadable barbell. The "1+"/"x+" set is an AMRAP — hit your reps to know when to
 // bump the 1RM. Secondary (T2) lifts run off the related main lift's TM at a lighter ladder.
-const NSUNS_LIFT_MOVEMENT = { squat: "back-squat-bb", bench: "bench-press-bb", deadlift: "deadlift-bb", press: "strict-press-bb" };
-const NSUNS_LIFT_LABEL = { squat: "Squat", bench: "Bench", deadlift: "Deadlift", press: "Press" };
+const NSUNS_LIFT_MOVEMENT = { squat: "back-squat-bb", bench: "bench-press-bb", deadlift: "deadlift-bb", press: "strict-press-bb", row: "bent-row-bb" };
+const NSUNS_LIFT_LABEL = { squat: "Squat", bench: "Bench", deadlift: "Deadlift", press: "Press", row: "Barbell Row" };
 
 // T2: 8 sets, reps 6/5/3/5/7/4/6/8, ramping to a peak % then holding (peak−20, peak−10, peak×6).
 const NSUNS_T2_REPS = [6, 5, 3, 5, 7, 4, 6, 8];
@@ -1630,13 +1682,74 @@ function nsunsSummary(spec) {
   return `${spec.t}: ${spec.sets.length}×${spec.sets.map((s) => s.reps).join("/")} @ ${Math.min(...pcts)}–${Math.max(...pcts)}% TM${amrapIdx >= 0 ? ` (AMRAP set ${amrapIdx + 1})` : ""}`;
 }
 
-// Build a day. Reads each person's 1RM for the four main lifts from maxes (keyed by the lift's
-// movement id), derives the TM, and computes every set's snapped barbell weight per person.
-function buildNsunsSession(data, opts) {
+// Helper: build a list of {pct, reps[, amrap]} sets. reps may be a single number or per-set array.
+function pctSets(pcts, reps, amrapIdx) {
+  return pcts.map((pct, i) => { const s = { pct, reps: Array.isArray(reps) ? reps[i] : reps }; if (amrapIdx === i) s.amrap = true; return s; });
+}
+
+// Madcow 5×5 — the classic StrongLifts successor. 3 days/week; each lift ramps up to a top set,
+// and you progress WEEKLY (after a good Friday, nudge the 1RM up). Percentages are of TM (90% 1RM):
+// the top working set sits near a heavy 5RM (~90% TM) and the ramp drops 12.5% per step below it.
+const MADCOW_RAMP = [45, 56, 67, 79, 90];      // 50/62.5/75/87.5/100% of a 90%-TM top set
+const MADCOW_DAYS = {
+  "Madcow — Monday (Volume)": { category: "full", assistance: "Optional: abs, curls", items: [
+    { id: "back-squat-bb", base: "squat", t: "Ramp 5×5", sets: pctSets(MADCOW_RAMP, 5) },
+    { id: "bench-press-bb", base: "bench", t: "Ramp 5×5", sets: pctSets(MADCOW_RAMP, 5) },
+    { id: "bent-row-bb", base: "row", t: "Ramp 5×5", sets: pctSets(MADCOW_RAMP, 5) },
+  ] },
+  "Madcow — Wednesday (Light)": { category: "full", assistance: "Optional: abs", items: [
+    { id: "back-squat-bb", base: "squat", t: "Light 4×5", sets: pctSets([45, 56, 67, 79], 5) },
+    { id: "strict-press-bb", base: "press", t: "Ramp 5×5", sets: pctSets(MADCOW_RAMP, 5) },
+    { id: "deadlift-bb", base: "deadlift", t: "Ramp 4×5", sets: pctSets([54, 67, 81, 90], 5) },
+  ] },
+  "Madcow — Friday (Intensity)": { category: "full", assistance: "Optional: abs, curls", items: [
+    { id: "back-squat-bb", base: "squat", t: "Ramp to top 5 + back-off", sets: pctSets([45, 56, 67, 79, 95, 67], [5, 5, 5, 5, 5, 8]) },
+    { id: "bench-press-bb", base: "bench", t: "Ramp to top 5 + back-off", sets: pctSets([45, 56, 67, 79, 95, 67], [5, 5, 5, 5, 5, 8]) },
+    { id: "bent-row-bb", base: "row", t: "Ramp 5×5", sets: pctSets(MADCOW_RAMP, 5) },
+  ] },
+};
+
+// Texas Method — 3-day intermediate: a big Volume day, a Light recovery day, and a heavy Intensity
+// day where you chase a new top set. Weekly progression (beat Friday → raise the 1RM).
+const TEXAS_DAYS = {
+  "Texas — Volume (Mon)": { category: "full", assistance: "Optional: chins, back extensions, abs", items: [
+    { id: "back-squat-bb", base: "squat", t: "5×5 across", sets: pctSets([85, 85, 85, 85, 85], 5) },
+    { id: "bench-press-bb", base: "bench", t: "5×5 across", sets: pctSets([85, 85, 85, 85, 85], 5) },
+    { id: "deadlift-bb", base: "deadlift", t: "1×5", sets: pctSets([90], 5) },
+  ] },
+  "Texas — Recovery (Wed)": { category: "full", assistance: "Chins & back extensions (3×8–12), your choice", items: [
+    { id: "back-squat-bb", base: "squat", t: "Light 2×5", sets: pctSets([68, 68], 5) },
+    { id: "strict-press-bb", base: "press", t: "3×5", sets: pctSets([72, 72, 72], 5) },
+  ] },
+  "Texas — Intensity (Fri)": { category: "full", assistance: "Optional: chins, abs", items: [
+    { id: "back-squat-bb", base: "squat", t: "Ramp to a top 5 (PR)", sets: pctSets([50, 70, 85, 92, 95], [5, 3, 2, 1, 5], 4) },
+    { id: "bench-press-bb", base: "bench", t: "Ramp to a top 5 (PR)", sets: pctSets([50, 70, 85, 92, 95], [5, 3, 2, 1, 5], 4) },
+  ] },
+};
+
+// The percentage-of-1RM programs, keyed by mode (their day names are globally unique).
+const PCT_TEMPLATES = { nsuns: NSUNS_DAYS, madcow: MADCOW_DAYS, texas: TEXAS_DAYS };
+function isPctMode(mode) { return mode === "nsuns" || mode === "madcow" || mode === "texas"; }
+// One-line subtitle + 1RM-editor note per percentage program (shown in the UI).
+const PCT_BLURB = {
+  nsuns: "nSuns 531 LP · every weight is a % of your training max (90% of 1RM)",
+  madcow: "Madcow 5×5 · ramping sets up to a top set; weights are % of training max (90% of 1RM)",
+  texas: "Texas Method · Volume / Recovery / Intensity; weights are % of training max (90% of 1RM)",
+};
+const PCT_NOTE = {
+  nsuns: "Enter a true 1RM per lift (lb). Training max = 90%, rounded to 5. Got all your reps on the <b>+</b> (AMRAP) set? Bump that lift's 1RM here and the whole workout re-scales.",
+  madcow: "Enter a true 1RM per lift (lb). Training max = 90%, rounded to 5. Madcow progresses <b>weekly</b> — after a good Friday, nudge each lift's 1RM up (~2.5% lower body, less for presses) and the ramps re-scale.",
+  texas: "Enter a true 1RM per lift (lb). Training max = 90%, rounded to 5. Texas progresses <b>weekly</b> — beat your Friday top set, then raise that lift's 1RM and the week re-scales.",
+};
+
+// Build a day for any percentage-of-1RM program. Reads each person's 1RM for the lift's base
+// (keyed by movement id), derives the TM, and computes every set's snapped barbell weight per person.
+function buildPctSession(mode, data, opts) {
   const { movements, gym } = data;
   const inv = gym.inventory, settings = opts.settings || {}, maxes = opts.maxes || {};
-  const cfg = NSUNS_DAYS[opts.day];
-  if (!cfg) throw new Error("Unknown nSuns day: " + opts.day);
+  const template = PCT_TEMPLATES[mode];
+  const cfg = template && template[opts.day];
+  if (!cfg) throw new Error("Unknown " + mode + " day: " + opts.day);
   const byId = {}; for (const m of movements) byId[m.id] = m;
   const barKgOf = (who) => (settings.bars && settings.bars[who] === "womens") ? inv.barbells.womens_kg : inv.barbells.mens_kg;
   const items = cfg.items.map((spec) => {
@@ -1655,12 +1768,16 @@ function buildNsunsSession(data, opts) {
       }
       return set;
     });
-    return { movement: m, base: spec.base, t: spec.t, tm, oneRM, sets, slotKey: `nsuns::${opts.day}::${spec.id}`, prescription: nsunsSummary(spec) };
+    return { movement: m, base: spec.base, t: spec.t, tm, oneRM, sets, slotKey: `${mode}::${opts.day}::${spec.id}`, prescription: nsunsSummary(spec) };
   });
   const blocks = [{ name: "Main lifts (% of training max)", role: "strength1", intensity: "heavy",
     zone: "B", zoneName: gym.zones.B ? gym.zones.B.name : "", items }];
-  return { date: opts.today, focus: opts.day, mode: "nsuns", category: cfg.category, assistance: cfg.assistance, zonePath: ["B"], blocks, seed: opts.seed || 1 };
+  return { date: opts.today, focus: opts.day, mode, category: cfg.category, assistance: cfg.assistance, zonePath: ["B"], blocks, seed: opts.seed || 1 };
 }
+
+function buildNsunsSession(data, opts) { return buildPctSession("nsuns", data, opts); }
+function buildMadcowSession(data, opts) { return buildPctSession("madcow", data, opts); }
+function buildTexasSession(data, opts) { return buildPctSession("texas", data, opts); }
 
 // ----------------------------------------------------------------------------
 // Wendler 5/3/1 — the classic, low-volume original
@@ -1803,6 +1920,8 @@ if (typeof module !== "undefined" && module.exports) {
     HYROX_DAYS, buildHyroxSession,
     NSUNS_DAYS, buildNsunsSession, nsunsTM, NSUNS_LIFT_MOVEMENT, NSUNS_LIFT_LABEL,
     T531_LIFTS, T531_WEEKS, buildT531Session,
+    MADCOW_DAYS, buildMadcowSession, TEXAS_DAYS, buildTexasSession, PCT_TEMPLATES, isPctMode, buildPctSession,
+    GZCLP_DAYS, buildGzclpSession,
     macrocycleWeek, macroBlockIndex, macroBlockKey, BLOCK_KEYS, BLOCK_NAMES, MACRO_BLOCKS, slotScheme,
     isTestWeek, estimate1RM, TEST_MAIN_SCHEME,
     weeklySets, parseSets, VOLUME_TARGETS,
@@ -1815,7 +1934,7 @@ if (typeof module !== "undefined" && module.exports) {
 // ============================================================================
 if (typeof document !== "undefined") {
   const STORE_KEY = "wgen.state.v1";
-  const APP_VERSION = "v30"; // keep in sync with CACHE in service-worker.js; bump on each deploy
+  const APP_VERSION = "v31"; // keep in sync with CACHE in service-worker.js; bump on each deploy
   let DATA = { movements: [], gym: {} };
   let STATE = loadState();
   let CURRENT = null; // current generated session
@@ -1909,8 +2028,14 @@ if (typeof document !== "undefined") {
       CURRENT = buildPhulSession(DATA, Object.assign({ day: choice }, base));
     } else if (choice && HYROX_DAYS[choice]) {
       CURRENT = buildHyroxSession(DATA, Object.assign({ day: choice }, base));
+    } else if (choice && GZCLP_DAYS[choice]) {
+      CURRENT = buildGzclpSession(DATA, Object.assign({ day: choice }, base));
     } else if (choice && NSUNS_DAYS[choice]) {
       CURRENT = buildNsunsSession(DATA, Object.assign({ day: choice }, base));
+    } else if (choice && MADCOW_DAYS[choice]) {
+      CURRENT = buildMadcowSession(DATA, Object.assign({ day: choice }, base));
+    } else if (choice && TEXAS_DAYS[choice]) {
+      CURRENT = buildTexasSession(DATA, Object.assign({ day: choice }, base));
     } else if (choice && T531_LIFTS[choice]) {
       CURRENT = buildT531Session(DATA, Object.assign({ day: choice, week: (STATE.settings && STATE.settings.t531week) || 1 }, base));
     } else if (choice && PROGRAM_DAYS[choice]) {
@@ -1983,7 +2108,10 @@ if (typeof document !== "undefined") {
     const sl = Object.keys(STRONGLIFTS_DAYS).map((d) => `<option value="${d}">${d}</option>`).join("");
     const phul = Object.keys(PHUL_DAYS).map((d) => `<option value="${d}">${d}</option>`).join("");
     const hyrox = Object.keys(HYROX_DAYS).map((d) => `<option value="${d}">${d}</option>`).join("");
+    const gzclp = Object.keys(GZCLP_DAYS).map((d) => `<option value="${d}">${d}</option>`).join("");
     const nsuns = Object.keys(NSUNS_DAYS).map((d) => `<option value="${d}">${d}</option>`).join("");
+    const madcow = Object.keys(MADCOW_DAYS).map((d) => `<option value="${d}">${d}</option>`).join("");
+    const texas = Object.keys(TEXAS_DAYS).map((d) => `<option value="${d}">${d}</option>`).join("");
     const t531 = Object.keys(T531_LIFTS).map((d) => `<option value="${d}">${d}</option>`).join("");
     const freestyle = `<option value="">Auto (freshest)</option>` +
       Object.keys(FOCUSES).map((f) => `<option value="${f}">${f}</option>`).join("");
@@ -1994,9 +2122,12 @@ if (typeof document !== "undefined") {
       `<optgroup label="Arnold Volume — Variation 2 (2-day split ×3)">${arnoldOpts(2)}</optgroup>` +
       `<optgroup label="Reddit PPL (6-day linear progression)">${ppl}</optgroup>` +
       `<optgroup label="StrongLifts 5×5 (3-day full body)">${sl}</optgroup>` +
+      `<optgroup label="GZCLP (3–4-day beginner LP, T1/T2/T3)">${gzclp}</optgroup>` +
       `<optgroup label="PHUL — Power Hypertrophy Upper Lower (4-day)">${phul}</optgroup>` +
       `<optgroup label="Hyrox prep (weekly template)">${hyrox}</optgroup>` +
       `<optgroup label="nSuns 531 LP (6-day, % of 1RM)">${nsuns}</optgroup>` +
+      `<optgroup label="Madcow 5×5 (3-day, % of 1RM, weekly)">${madcow}</optgroup>` +
+      `<optgroup label="Texas Method (3-day, % of 1RM, weekly)">${texas}</optgroup>` +
       `<optgroup label="5/3/1 classic (4-day wave, % of 1RM)">${t531}</optgroup>` +
       `<optgroup label="Freestyle (CrossFit-style)">${freestyle}</optgroup>`;
     // Restore the last chosen workout so it sticks across reloads.
@@ -2013,7 +2144,7 @@ if (typeof document !== "undefined") {
     const el = document.getElementById("session");
     if (!CURRENT) { el.innerHTML = ""; return; }
     STATE.current = CURRENT; saveState(); // auto-save so it survives reopening the app
-    if (CURRENT.mode === "nsuns") return renderNsuns();
+    if (isPctMode(CURRENT.mode)) return renderPct();
     if (CURRENT.mode === "t531") return renderT531();
     const pathStr = CURRENT.zonePath.map((z) => `${z}·${DATA.gym.zones[z].name}`).join("  →  ");
     const crowd = DATA.gym.crowd;
@@ -2072,11 +2203,11 @@ if (typeof document !== "undefined") {
   }
 
   // nSuns: a 1RM editor + a per-set weight table for each main lift (everything is a % of TM).
-  // Shared by the percentage-of-1RM programs (nSuns, 5/3/1): a per-person 1RM entry table and a
-  // per-lift set table. Both read/write the four main-lift 1RMs in STATE.maxes.
-  function oneRMEditorHTML(note) {
+  // Shared by the percentage-of-1RM programs (nSuns, Madcow, Texas, 5/3/1): a per-person 1RM entry
+  // table (only the lifts this program uses) and a per-lift set table. Read/write STATE.maxes.
+  function oneRMEditorHTML(bases, note) {
     STATE.maxes = STATE.maxes || {};
-    const lifts = ["squat", "bench", "deadlift", "press"];
+    const lifts = bases && bases.length ? bases : ["squat", "bench", "deadlift", "press"];
     const ormVal = (base, who) => { const mid = NSUNS_LIFT_MOVEMENT[base]; return (STATE.maxes[mid] && STATE.maxes[mid][who] != null) ? STATE.maxes[mid][who] : ""; };
     return `<div class="block"><div class="bhead"><h3>Your 1-rep maxes</h3></div>` +
       `<div class="bstruct">${note}</div>` +
@@ -2111,15 +2242,21 @@ if (typeof document !== "undefined") {
     return html + `</table></div>`;
   }
 
-  function renderNsuns() {
+  // Render any percentage-of-1RM program (nSuns / Madcow / Texas): a 1RM editor over just the lifts
+  // this program uses, then a per-set weight table per lift, then the assistance note.
+  function renderPct() {
     const el = document.getElementById("session");
+    const mode = CURRENT.mode;
+    const order = ["squat", "bench", "deadlift", "press", "row"];
+    const used = new Set();
+    CURRENT.blocks.forEach((b) => b.items.forEach((it) => { if (it.base) used.add(it.base); }));
+    const bases = order.filter((b) => used.has(b));
     let html = `<div class="sesshead"><h2>${CURRENT.focus}</h2>` +
-      `<div class="path">nSuns 531 LP · every weight is a % of your training max (90% of 1RM)</div>` +
+      `<div class="path">${PCT_BLURB[mode] || ""}</div>` +
       `<div class="stoolbar"><button id="saveBtn">Save</button></div></div>`;
-    html += oneRMEditorHTML("Enter a true 1RM per lift (lb). Training max = 90%, rounded to 5. Got all your reps on the <b>+</b> (AMRAP) set? Bump that lift's 1RM here and the whole workout re-scales.");
-    CURRENT.blocks[0].items.forEach((it) => { html += liftSetTableHTML(it); });
-    html += `<div class="block"><div class="bhead"><h3>Assistance</h3></div>` +
-      `<div class="bstruct">${CURRENT.assistance} — your choice of bodybuilding sets/reps (e.g. 5×10–15), kept light.</div></div>`;
+    html += oneRMEditorHTML(bases, PCT_NOTE[mode] || "");
+    CURRENT.blocks.forEach((b) => b.items.forEach((it) => { html += liftSetTableHTML(it); }));
+    if (CURRENT.assistance) html += `<div class="block"><div class="bhead"><h3>Assistance</h3></div><div class="bstruct">${CURRENT.assistance}.</div></div>`;
     el.innerHTML = html;
     document.getElementById("saveBtn").onclick = () => saveWorkout();
     wireOneRMInputs(el, () => generate(CURRENT.focus));
@@ -2134,7 +2271,7 @@ if (typeof document !== "undefined") {
       `<div class="path">Wendler 5/3/1 · 3-week wave, weights are % of training max (90% of 1RM)</div>` +
       `<div class="dpw">Cycle week: ${weekBtns}</div>` +
       `<div class="stoolbar"><button id="saveBtn">Save</button></div></div>`;
-    html += oneRMEditorHTML("Enter a true 1RM per lift (lb). Training max = 90%, rounded to 5. Finished the 3-week cycle? Add 5 lb (press/bench) or 10 lb (squat/deadlift) to that lift's 1RM to start the next one.");
+    html += oneRMEditorHTML(["squat", "bench", "deadlift", "press"], "Enter a true 1RM per lift (lb). Training max = 90%, rounded to 5. Finished the 3-week cycle? Add 5 lb (press/bench) or 10 lb (squat/deadlift) to that lift's 1RM to start the next one.");
     CURRENT.blocks.forEach((b) => b.items.forEach((it) => { html += liftSetTableHTML(it); }));
     html += `<div class="block"><div class="bhead"><h3>Assistance</h3></div>` +
       `<div class="bstruct">${CURRENT.assistance}.</div></div>`;

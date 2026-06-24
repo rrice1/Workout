@@ -121,6 +121,17 @@ flips to **"update ready — tap to refresh"** when a newer deploy has been pick
     lift's TM, plus an assistance note. **Edit a 1RM and the whole workout re-scales instantly** —
     so when you hit all your reps on the + set, bump that lift's 1RM to progress. (The four 1RMs you
     enter here also feed the dynamic program's percentage suggestions.)
+  - **Madcow 5×5 (percentage-based):** the classic StrongLifts successor — 3 days (Volume / Light /
+    Intensity) where each lift **ramps up to a top set**, and you progress **weekly**. Uses the same
+    1RMs as nSuns/5-3-1 (plus a Barbell Row 1RM, which only appears when you pick Madcow). Friday
+    chases a new top set with a back-off; bump the 1RM after a good week and the ramps re-scale.
+  - **Texas Method (percentage-based):** 3-day intermediate — a big **Volume** day (5×5 across), a
+    **Light** recovery day, and an **Intensity** day where you ramp to a new top set of 5. Weekly
+    progression: beat Friday, raise that lift's 1RM.
+  - **GZCLP (fixed template):** the GZCL-method beginner LP built on **tiers** — **T1** (main, heavy
+    5×3+, progressing 5×3 → 6×2 → 10×1 on a stall), **T2** (secondary volume, 3×10 → 3×8 → 3×6), and
+    **T3** (accessory, 3×15+). Four sessions rotate A1/A2/B1/B2. Like the other LP templates the
+    weight is tracked by logging (add each session). Swap/log/share/save supported.
   - **5/3/1 classic (percentage-based):** Jim Wendler's original — lower volume, slower-but-forever.
     One main lift per day (Press, Deadlift, Bench, Squat), driven by the **same four 1RMs** as nSuns
     (TM = 90%). It runs the **3-week wave** — *Week 1 = 5s (65/75/85+), Week 2 = 3s (70/80/90+),

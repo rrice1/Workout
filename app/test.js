@@ -682,6 +682,33 @@ const empty = G.buildNsunsSession(DATA, { day: "nSuns Mon — Bench / OHP", toda
 ok("no 1RM → no weights (prompts entry)", empty.blocks[0].items[0].tm.him === null && empty.blocks[0].items[0].sets[0].him === null);
 ok("nSuns lifts are conventional barbell movements", nsAll.every(id => DATA.movements.find(m => m.id === id).implement === "barbell"));
 
+console.log("\n== Madcow 5×5 + Texas Method (percentage engine) ==");
+const pctMax = { "back-squat-bb": { him: 315, her: 135 }, "bench-press-bb": { him: 225, her: 95 }, "deadlift-bb": { him: 355, her: 185 }, "strict-press-bb": { him: 135, her: 65 }, "bent-row-bb": { him: 185, her: 75 } };
+const pctBars = { bars: { him: "mens", her: "womens" } };
+ok("Madcow has 3 days, Texas has 3 days", Object.keys(G.MADCOW_DAYS).length === 3 && Object.keys(G.TEXAS_DAYS).length === 3);
+ok("Madcow & Texas are percentage modes", G.isPctMode("madcow") && G.isPctMode("texas") && G.isPctMode("nsuns") && !G.isPctMode("gzclp"));
+const mcMon = G.buildMadcowSession(DATA, { day: "Madcow — Monday (Volume)", today, maxes: pctMax, settings: pctBars });
+ok("Madcow session mode is madcow", mcMon.mode === "madcow");
+ok("Madcow Monday ramps 5 ascending sets to a top set", (() => { const s = mcMon.blocks[0].items[0].sets; return s.length === 5 && s[0].him < s[4].him && s.every(x => x.reps === 5); })());
+ok("Madcow uses barbell row as a computed lift off its own 1RM", (() => { const row = mcMon.blocks[0].items.find(i => i.base === "row"); return row && row.movement.id === "bent-row-bb" && row.tm.him === G.nsunsTM(185); })());
+ok("Madcow Friday adds a back-off set (8 reps) after the top single-weight set", (() => { const s = G.buildMadcowSession(DATA, { day: "Madcow — Friday (Intensity)", today, maxes: pctMax, settings: pctBars }).blocks[0].items[0].sets; return s.length === 6 && s[5].reps === 8 && s[5].him < s[4].him; })());
+const txVol = G.buildTexasSession(DATA, { day: "Texas — Volume (Mon)", today, maxes: pctMax, settings: pctBars });
+ok("Texas Volume is 5×5 across (same weight every set)", (() => { const s = txVol.blocks[0].items[0].sets; return s.length === 5 && s.every(x => x.him === s[0].him && x.reps === 5); })());
+ok("Texas Intensity ramps to a top PR set", (() => { const s = G.buildTexasSession(DATA, { day: "Texas — Intensity (Fri)", today, maxes: pctMax, settings: pctBars }).blocks[0].items[0].sets; return s[s.length - 1].reps === 5 && s[s.length - 1].him === Math.max(...s.map(x => x.him)); })());
+ok("Madcow/Texas all lifts resolve", [...Object.keys(G.MADCOW_DAYS).flatMap(d => G.MADCOW_DAYS[d].items.map(i => i.id)), ...Object.keys(G.TEXAS_DAYS).flatMap(d => G.TEXAS_DAYS[d].items.map(i => i.id))].every(id => mvIds.has(id)));
+ok("row base maps to the barbell row movement", G.NSUNS_LIFT_MOVEMENT.row === "bent-row-bb");
+
+console.log("\n== GZCLP (T1/T2/T3 linear progression) ==");
+ok("GZCLP has 4 rotating days", Object.keys(G.GZCLP_DAYS).length === 4);
+const gzAll = Object.keys(G.GZCLP_DAYS).flatMap(d => G.GZCLP_DAYS[d].blocks.flatMap(b => b.items.map(i => i.id)));
+ok("every GZCLP movement resolves", gzAll.every(id => mvIds.has(id)), gzAll.filter(id => !mvIds.has(id)).join(", "));
+ok("GZCLP is a fixed-template mode (logged, not %1RM)", G.isFixedMode("gzclp") && !G.isPctMode("gzclp"));
+const gz = G.buildGzclpSession(DATA, { today, maxes: {}, settings: {}, progress: {}, slots: {}, day: "GZCLP — A1 (Squat / Bench)" });
+ok("A1 = T1 squat 5×3+, T2 bench 3×10, T3 pulldown 3×15+", gz.blocks[0].items[0].movement.id === "back-squat-bb" && gz.blocks[0].items[0].prescription === "5×3+" && gz.blocks[1].items[0].prescription === "3×10" && gz.blocks[2].items[0].prescription === "3×15+");
+ok("GZCLP tiers track weight (T2/T3 included)", gz.blocks.flatMap(b => b.items).every(it => it.load && it.weighted === true));
+ok("a swapped GZCLP slot sticks via slots", G.buildGzclpSession(DATA, { today, maxes: {}, settings: {}, progress: {}, slots: { "gzclp::GZCLP — A1 (Squat / Bench)::2::0": "lat-pulldown-banded" }, day: "GZCLP — A1 (Squat / Bench)" }).blocks[2].items[0].movement.id === "lat-pulldown-banded");
+ok("GZCLP round-trips through share encode/decode", G.decodeSession(G.encodeSession(gz), movements).mode === "gzclp");
+
 console.log("\n== Hyrox prep ==");
 ok("6 Hyrox days defined", Object.keys(G.HYROX_DAYS).length === 6);
 const hyAll = Object.keys(G.HYROX_DAYS).flatMap(d => G.HYROX_DAYS[d].blocks.flatMap(b => b.items.map(i => i.id)));
