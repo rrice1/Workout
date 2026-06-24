@@ -24,6 +24,7 @@ const PATTERN_REGION = {
   "h-push": "push", "v-push": "push", "h-pull": "pull", "v-pull": "pull",
   olympic: "full", carry: "full", core: "core", conditioning: "cardio", mobility: "full",
   biceps: "pull", triceps: "push", "side-delts": "push", "rear-delts": "pull", calves: "lower",
+  forearms: "pull",
 };
 
 // Movement-quality tier → Program selection bonus. "core" lifts (the boring, repeatable,
@@ -845,8 +846,9 @@ const MUSCLE_BUCKET = {
 // Parse the number of working sets from a prescription like "4×5", "3×12–15", "3 × 45–60s".
 function parseSets(p) {
   if (!p) return 0;
-  const m = String(p).match(/^(\d+)\s*[×x]/);
-  if (m) return parseInt(m[1], 10);
+  // "4×5" → 4, and a set range like "3–4 × 10" → 4 (use the upper bound for volume).
+  const m = String(p).match(/^(\d+)(?:\s*[–-]\s*(\d+))?\s*[×x]/);
+  if (m) return parseInt(m[2] || m[1], 10);
   if (/build to|work up to|3rm/i.test(p)) return 1; // top set of a build-up / 3RM test
   return 0;
 }
@@ -1157,24 +1159,161 @@ const PHAT_DAYS = {
   ] },
 };
 
+// Arnold Schwarzenegger "Volume" routine (Muscle & Strength, Steve Shaw) — a fixed, high-volume
+// golden-era bodybuilding split offered in two variations. Like PHAT these days are set in stone
+// (you can still swap/log/share). Variation 1 = a 3-day Chest&Back / Shoulders&Arms / Legs split
+// run twice a week; Variation 2 = a brutal 2-day Chest-Back-Legs / Shoulders-Arms split run thrice.
+const ARNOLD_DAYS = {
+  "Arnold V1 — Chest & Back": { variation: 1, category: "upper", blocks: [
+    { name: "Chest", role: "strength1", intensity: "heavy", items: [
+      { id: "bench-press-bb", scheme: "3–4 × 10", reps: 10, intensity: "heavy", weighted: true },
+      { id: "incline-bench-bb", scheme: "3–4 × 10", reps: 10, intensity: "med", weighted: true },
+      { id: "db-pullover", scheme: "3–4 × 10", reps: 10, intensity: "med", weighted: true },
+    ] },
+    { name: "Back", role: "strength2", intensity: "heavy", items: [
+      { id: "chin-up", scheme: "3–4 × 10", reps: 10, intensity: "med", weighted: false },
+      { id: "bent-row-bb", scheme: "3–4 × 10", reps: 10, intensity: "med", weighted: true },
+      { id: "deadlift-bb", scheme: "3–4 × 10", reps: 10, intensity: "heavy", weighted: true },
+    ] },
+    { name: "Abs", role: "core", intensity: "light", items: [
+      { id: "crunch", scheme: "5 × 25", reps: 25, intensity: "light", weighted: false },
+    ] },
+  ] },
+  "Arnold V1 — Shoulders & Arms": { variation: 1, category: "upper", blocks: [
+    { name: "Shoulders", role: "strength2", intensity: "med", items: [
+      { id: "clean-and-press-bb", scheme: "3–4 × 10", reps: 10, intensity: "med", weighted: true },
+      { id: "lateral-raise", scheme: "3–4 × 10", reps: 10, intensity: "light", weighted: true },
+      { id: "upright-row", scheme: "3–4 × 10", reps: 10, intensity: "light", weighted: true },
+      { id: "strict-press-bb", scheme: "3–4 × 10", reps: 10, intensity: "med", weighted: true },
+    ] },
+    { name: "Arms", role: "accessory", intensity: "light", items: [
+      { id: "barbell-curl", scheme: "3–4 × 10", reps: 10, intensity: "light", weighted: true },
+      { id: "seated-db-curl", scheme: "3–4 × 10", reps: 10, intensity: "light", weighted: true },
+      { id: "close-grip-bench-bb", scheme: "3–4 × 10", reps: 10, intensity: "med", weighted: true },
+      { id: "standing-barbell-tricep-ext", scheme: "3–4 × 10", reps: 10, intensity: "light", weighted: true },
+    ] },
+    { name: "Forearms", role: "accessory", intensity: "light", items: [
+      { id: "wrist-curl", scheme: "3–4 × 10", reps: 10, intensity: "light", weighted: true },
+      { id: "reverse-wrist-curl", scheme: "3–4 × 10", reps: 10, intensity: "light", weighted: true },
+    ] },
+    { name: "Abs", role: "core", intensity: "light", items: [
+      { id: "reverse-crunch", scheme: "5 × 25", reps: 25, intensity: "light", weighted: false },
+    ] },
+  ] },
+  "Arnold V1 — Legs & Lower Back": { variation: 1, category: "lower", blocks: [
+    { name: "Legs", role: "strength1", intensity: "heavy", items: [
+      { id: "back-squat-bb", scheme: "3–4 × 10", reps: 10, intensity: "heavy", weighted: true },
+      { id: "walking-lunge", scheme: "3–4 × 10", reps: 10, intensity: "med", weighted: true },
+      { id: "leg-curl", scheme: "3–4 × 10", reps: 10, intensity: "light", weighted: true },
+    ] },
+    { name: "Lower Back", role: "strength2", intensity: "med", items: [
+      { id: "stiff-leg-deadlift-bb", scheme: "3–4 × 10", reps: 10, intensity: "med", weighted: true },
+      { id: "good-morning-bb", scheme: "3–4 × 10", reps: 10, intensity: "med", weighted: true },
+    ] },
+    { name: "Calves", role: "accessory", intensity: "light", items: [
+      { id: "calf-raise", scheme: "3–4 × 10", reps: 10, intensity: "light", weighted: true },
+    ] },
+    { name: "Abs", role: "core", intensity: "light", items: [
+      { id: "crunch", scheme: "5 × 25", reps: 25, intensity: "light", weighted: false },
+    ] },
+  ] },
+  "Arnold V2 — Chest, Back & Legs": { variation: 2, category: "full", blocks: [
+    { name: "Chest", role: "strength1", intensity: "heavy", items: [
+      { id: "bench-press-bb", scheme: "5 × 6–10", reps: 8, intensity: "heavy", weighted: true },
+      { id: "db-fly", scheme: "5 × 6–10", reps: 8, intensity: "med", weighted: true },
+      { id: "incline-bench-bb", scheme: "6 × 6–10", reps: 8, intensity: "med", weighted: true },
+      { id: "cable-fly", scheme: "6 × 10–12", reps: 10, intensity: "light", weighted: true },
+      { id: "tricep-dips", scheme: "5 × failure", reps: 10, intensity: "med", weighted: false },
+      { id: "db-pullover", scheme: "5 × 10–12", reps: 10, intensity: "light", weighted: true },
+    ] },
+    { name: "Back", role: "strength2", intensity: "heavy", items: [
+      { id: "pull-up-banded", scheme: "6 × failure", reps: 10, intensity: "med", weighted: false },
+      { id: "t-bar-row", scheme: "5 × 6–10", reps: 8, intensity: "med", weighted: true },
+      { id: "cable-row", scheme: "6 × 6–10", reps: 8, intensity: "med", weighted: true },
+      { id: "db-row", scheme: "5 × 6–10", reps: 8, intensity: "med", weighted: true },
+      { id: "stiff-leg-deadlift-bb", scheme: "6 × 15", reps: 15, intensity: "med", weighted: true },
+    ] },
+    { name: "Legs", role: "strength2", intensity: "heavy", items: [
+      { id: "back-squat-bb", scheme: "6 × 8–12", reps: 10, intensity: "heavy", weighted: true },
+      { id: "leg-press", scheme: "6 × 8–12", reps: 10, intensity: "med", weighted: true },
+      { id: "leg-extension", scheme: "6 × 12–15", reps: 12, intensity: "light", weighted: true },
+      { id: "leg-curl", scheme: "6 × 10–15", reps: 12, intensity: "light", weighted: true },
+      { id: "walking-lunge", scheme: "5 × 15", reps: 15, intensity: "med", weighted: true },
+    ] },
+    { name: "Calves", role: "accessory", intensity: "light", items: [
+      { id: "calf-raise", scheme: "10 × 10", reps: 10, intensity: "light", weighted: true },
+      { id: "seated-calf", scheme: "8 × 15", reps: 15, intensity: "light", weighted: true },
+      { id: "single-leg-calf-raise", scheme: "6 × 12", reps: 12, intensity: "light", weighted: true },
+    ] },
+    { name: "Forearms", role: "accessory", intensity: "light", items: [
+      { id: "wrist-curl", scheme: "4 × 10", reps: 10, intensity: "light", weighted: true },
+      { id: "reverse-curl", scheme: "4 × 8", reps: 8, intensity: "light", weighted: true },
+      { id: "wrist-roller", scheme: "4 × failure", reps: 10, intensity: "light", weighted: false },
+    ] },
+    { name: "Abs", role: "core", intensity: "light", items: [
+      { id: "abs-circuit", scheme: "30 min (by instinct)", reps: 0, intensity: "light", weighted: false },
+    ] },
+  ] },
+  "Arnold V2 — Shoulders & Arms": { variation: 2, category: "upper", blocks: [
+    { name: "Biceps", role: "strength2", intensity: "med", items: [
+      { id: "barbell-curl", scheme: "6 × 6–10", reps: 8, intensity: "med", weighted: true },
+      { id: "seated-db-curl", scheme: "6 × 6–10", reps: 8, intensity: "light", weighted: true },
+      { id: "concentration-curl", scheme: "6 × 6–10", reps: 8, intensity: "light", weighted: true },
+    ] },
+    { name: "Triceps", role: "strength2", intensity: "med", items: [
+      { id: "close-grip-bench-bb", scheme: "6 × 6–10", reps: 8, intensity: "med", weighted: true },
+      { id: "tricep-pushdown", scheme: "6 × 6–10", reps: 8, intensity: "light", weighted: true },
+      { id: "barbell-french-press", scheme: "6 × 6–10", reps: 8, intensity: "light", weighted: true },
+      { id: "overhead-tricep", scheme: "6 × 6–10", reps: 8, intensity: "light", weighted: true },
+    ] },
+    { name: "Shoulders", role: "strength2", intensity: "med", items: [
+      { id: "seated-barbell-press", scheme: "6 × 6–10", reps: 8, intensity: "med", weighted: true },
+      { id: "lateral-raise", scheme: "6 × 10–12", reps: 10, intensity: "light", weighted: true },
+      { id: "rear-delt-fly", scheme: "5 × 10", reps: 10, intensity: "light", weighted: true },
+      { id: "cable-lateral-raise", scheme: "5 × 15", reps: 15, intensity: "light", weighted: true },
+    ] },
+    { name: "Calves", role: "accessory", intensity: "light", items: [
+      { id: "calf-raise", scheme: "10 × 12", reps: 12, intensity: "light", weighted: true },
+      { id: "seated-calf", scheme: "8 × 10", reps: 10, intensity: "light", weighted: true },
+      { id: "single-leg-calf-raise", scheme: "6 × 8", reps: 8, intensity: "light", weighted: true },
+    ] },
+    { name: "Forearms", role: "accessory", intensity: "light", items: [
+      { id: "wrist-curl", scheme: "4 × 10", reps: 10, intensity: "light", weighted: true },
+      { id: "reverse-curl", scheme: "4 × 8", reps: 8, intensity: "light", weighted: true },
+      { id: "wrist-roller", scheme: "4 × failure", reps: 10, intensity: "light", weighted: false },
+    ] },
+    { name: "Abs", role: "core", intensity: "light", items: [
+      { id: "abs-circuit", scheme: "30 min (by instinct)", reps: 0, intensity: "light", weighted: false },
+    ] },
+  ] },
+};
+
+// The fixed/"set in stone" templates, keyed by mode. Their day names are globally unique, so a
+// dropdown choice maps unambiguously to one template + mode.
+const FIXED_TEMPLATES = { phat: PHAT_DAYS, arnold: ARNOLD_DAYS };
+function isFixedMode(mode) { return mode === "phat" || mode === "arnold"; }
+
 // loadSuggestion that also works for machine/cable/weighted-bodyweight movements (the dynamic
-// library marks those loadable:false). Forces a load row so PHAT can track the weight you used.
+// library marks those loadable:false). Forces a load row so fixed templates can track the weight.
 function phatLoadSuggestion(m, reps, maxes, settings, inv, progress) {
   return loadSuggestion(m.loadable ? m : Object.assign({}, m, { loadable: true }), reps, maxes, settings, inv, progress);
 }
 
-function buildPhatSession(data, opts) {
+// Build one day of a fixed template (PHAT or Arnold). Set in stone except for logged swaps,
+// which stick via the slot key.
+function buildFixedSession(mode, data, opts) {
   const { movements, gym } = data;
   const today = opts.today;
   const maxes = opts.maxes || {}, settings = opts.settings || {}, progress = opts.progress || {}, inv = gym.inventory;
   const slots = opts.slots || {};
-  const cfg = PHAT_DAYS[opts.day];
-  if (!cfg) throw new Error("Unknown PHAT day: " + opts.day);
+  const template = FIXED_TEMPLATES[mode];
+  const cfg = template && template[opts.day];
+  if (!cfg) throw new Error("Unknown " + mode + " day: " + opts.day);
   const byId = {}; for (const m of movements) byId[m.id] = m;
   const blocks = cfg.blocks.map((bk, bi) => ({
     name: bk.name, role: bk.role || "strength2", intensity: bk.intensity || "med",
     items: bk.items.map((spec, ii) => {
-      const sk = `phat::${opts.day}::${bi}::${ii}`;
+      const sk = `${mode}::${opts.day}::${bi}::${ii}`;
       // A logged swap sticks (set in stone otherwise).
       const mid = (slots[sk] && byId[slots[sk]]) ? slots[sk] : spec.id;
       const m = byId[mid] || byId[spec.id];
@@ -1184,8 +1323,11 @@ function buildPhatSession(data, opts) {
   }));
   assignZones(gym, blocks);
   const path = blocks.map((bk) => bk.zone).filter((z, i, a) => z && (i === 0 || z !== a[i - 1]));
-  return { date: today, focus: opts.day, mode: "phat", category: cfg.category, zonePath: path, blocks, seed: opts.seed || 1 };
+  return { date: today, focus: opts.day, mode, category: cfg.category, zonePath: path, blocks, seed: opts.seed || 1 };
 }
+
+function buildPhatSession(data, opts) { return buildFixedSession("phat", data, opts); }
+function buildArnoldSession(data, opts) { return buildFixedSession("arnold", data, opts); }
 
 
 // Assign each block the zone that ALL its movements share (honest label). If the
@@ -1273,6 +1415,7 @@ if (typeof module !== "undefined" && module.exports) {
     pairZoneDistance, prescribe, computeTargetRegions, FOCUSES, PROGRAM_DAYS,
     PROGRAM_SEQUENCE, programSequence, nextProgramDay, dayNumber, mesocycleWeek, MESO,
     dayMuscleRegions, sessionMuscleRegions, PHAT_DAYS, buildPhatSession, phatLoadSuggestion,
+    ARNOLD_DAYS, buildArnoldSession, buildFixedSession, FIXED_TEMPLATES, isFixedMode,
     macrocycleWeek, macroBlockIndex, macroBlockKey, BLOCK_KEYS, BLOCK_NAMES, MACRO_BLOCKS, slotScheme,
     isTestWeek, estimate1RM, TEST_MAIN_SCHEME,
     weeklySets, parseSets, VOLUME_TARGETS,
@@ -1285,7 +1428,7 @@ if (typeof module !== "undefined" && module.exports) {
 // ============================================================================
 if (typeof document !== "undefined") {
   const STORE_KEY = "wgen.state.v1";
-  const APP_VERSION = "v23"; // keep in sync with CACHE in service-worker.js; bump on each deploy
+  const APP_VERSION = "v24"; // keep in sync with CACHE in service-worker.js; bump on each deploy
   let DATA = { movements: [], gym: {} };
   let STATE = loadState();
   let CURRENT = null; // current generated session
@@ -1369,6 +1512,8 @@ if (typeof document !== "undefined") {
     const base = { today: todayStr(), history: STATE.history, maxes: STATE.maxes, progress: STATE.progress || {}, slots: STATE.slots || {}, settings: STATE.settings, avoidList: STATE.avoidList, seed };
     if (choice && PHAT_DAYS[choice]) {
       CURRENT = buildPhatSession(DATA, Object.assign({ day: choice }, base));
+    } else if (choice && ARNOLD_DAYS[choice]) {
+      CURRENT = buildArnoldSession(DATA, Object.assign({ day: choice }, base));
     } else if (choice && PROGRAM_DAYS[choice]) {
       CURRENT = buildProgramSession(DATA, Object.assign({ day: choice, mesoWeek: mesocycleWeek(STATE.program), macroBlock: macroBlockKey(STATE.program) }, base));
     } else {
@@ -1433,11 +1578,15 @@ if (typeof document !== "undefined") {
     const sel = document.getElementById("focusSelect");
     const program = Object.keys(PROGRAM_DAYS).map((d) => `<option value="${d}">${d}</option>`).join("");
     const phat = Object.keys(PHAT_DAYS).map((d) => `<option value="${d}">${d}</option>`).join("");
+    const arnoldOpts = (v) => Object.keys(ARNOLD_DAYS).filter((d) => ARNOLD_DAYS[d].variation === v)
+      .map((d) => `<option value="${d}">${d}</option>`).join("");
     const freestyle = `<option value="">Auto (freshest)</option>` +
       Object.keys(FOCUSES).map((f) => `<option value="${f}">${f}</option>`).join("");
     sel.innerHTML =
       `<optgroup label="Program (prescriptive split)">${program}</optgroup>` +
       `<optgroup label="PHAT (fixed template)">${phat}</optgroup>` +
+      `<optgroup label="Arnold Volume — Variation 1 (3-day split ×2)">${arnoldOpts(1)}</optgroup>` +
+      `<optgroup label="Arnold Volume — Variation 2 (2-day split ×3)">${arnoldOpts(2)}</optgroup>` +
       `<optgroup label="Freestyle (CrossFit-style)">${freestyle}</optgroup>`;
     // Restore the last chosen workout so it sticks across reloads.
     sel.value = (STATE.settings && STATE.settings.lastFocus) || "";
@@ -1457,7 +1606,7 @@ if (typeof document !== "undefined") {
     const crowd = DATA.gym.crowd;
     const busy = crowd && isBusyDay(["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][new Date(todayStr() + "T00:00:00").getDay()], crowd);
     // The crowd steer only applies to the dynamic generator, not the fixed PHAT template.
-    const busyNote = (busy && CURRENT.mode !== "phat") ? `<div class="testnote">🚦 Busy day — steering away from the crowded ${(crowd.crowdedZones || []).map((z) => `Zone ${z}`).join("/")} (bench/DB &amp; machines) toward the rigs, open floor &amp; cardio.</div>` : "";
+    const busyNote = (busy && !isFixedMode(CURRENT.mode)) ? `<div class="testnote">🚦 Busy day — steering away from the crowded ${(crowd.crowdedZones || []).map((z) => `Zone ${z}`).join("/")} (bench/DB &amp; machines) toward the rigs, open floor &amp; cardio.</div>` : "";
     const wl = sessionWorkload(CURRENT);
     const sharedNote = CURRENT.shared ? `<div class="testnote">📲 Shared workout loaded — enter your own weights.</div>` : "";
     let html = `<div class="sesshead"><h2>${CURRENT.focus}</h2><div class="path">Path: ${pathStr}</div>${busyNote}${sharedNote}` +
@@ -1688,12 +1837,12 @@ if (typeof document !== "undefined") {
     snapshot();
     const next = cands[0];
     const slot = slotForRole(role);
-    const isPhat = CURRENT.mode === "phat";
-    // PHAT is a fixed template — keep the prescribed scheme on a swap, just change the movement.
-    const keepScheme = isPhat || slot === "strength1";
-    const reps = isPhat ? (+((String(item.prescription).match(/[×x]\s*(\d+)/) || [])[1]) || 8)
+    const isFixed = isFixedMode(CURRENT.mode);
+    // Fixed templates (PHAT/Arnold) keep the prescribed scheme on a swap, just change the movement.
+    const keepScheme = isFixed || slot === "strength1";
+    const reps = isFixed ? (+((String(item.prescription).match(/[×x]\s*(\d+)/) || [])[1]) || 8)
       : (slot === "strength1" ? 3 : (next.pattern === "core" ? 12 : 10));
-    const load = isPhat
+    const load = isFixed
       ? (item.weighted ? phatLoadSuggestion(next, reps, STATE.maxes, STATE.settings, DATA.gym.inventory, STATE.progress || {}) : null)
       : loadSuggestion(next, reps, STATE.maxes, STATE.settings, DATA.gym.inventory, STATE.progress || {});
     CURRENT.blocks[bi].items[ii] = {

@@ -84,6 +84,12 @@ flips to **"update ready — tap to refresh"** when a newer deploy has been pick
     is rest). Unlike the dynamic program these are **set in stone** — the exact exercises and
     sets/reps every time — but you can still **swap** any movement (the swap sticks), log weights
     (including on machines/cables), and share/save it. Pick the day from the dropdown.
+  - **Arnold Volume (fixed template):** the classic high-volume golden-era split, in **two
+    variations** you can mix and match. **Variation 1** is a 3-day rotation run twice a week —
+    *Chest & Back, Shoulders & Arms, Legs & Lower Back* (mostly 3–4 × 10). **Variation 2** is the
+    brutal 2-day rotation run three times a week — *Chest, Back & Legs* and *Shoulders & Arms*
+    (5–6 sets per exercise, often to failure). Like PHAT these are **set in stone** but fully
+    swap/log/share-able; pick any day from the dropdown for an ad-hoc session.
   - **Freestyle (CrossFit-style):** the original generator — Warm Up → Strength 1 → Strength 2
     superset → MetCon. Leave it on *Auto* to pick the freshest focus, or choose a specific one.
 - **Warm-ups match the day:** the warm-up only pulls mobility/prep for the regions you're about to

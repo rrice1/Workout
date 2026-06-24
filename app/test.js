@@ -595,7 +595,7 @@ ok("share omits loads (weights stay personal)", decoded.blocks.every(b => b.item
 
 console.log("\n== Dumbbells available in Zone B (except bench moves) ==");
 const dbMoves = movements.filter(m => m.implement === "dumbbell");
-ok("dumbbell moves can be done in Zone B (except bench-based ones)", dbMoves.filter(m => !(m.zones || []).includes("B")).every(m => ["db-bench", "db-incline-bench", "db-fly", "spider-curl"].includes(m.id)), dbMoves.filter(m => !(m.zones || []).includes("B")).map(m => m.id).join(", "));
+ok("dumbbell moves can be done in Zone B (except bench-based ones)", dbMoves.filter(m => !(m.zones || []).includes("B")).every(m => ["db-bench", "db-incline-bench", "db-fly", "spider-curl", "db-pullover", "seated-db-curl"].includes(m.id)), dbMoves.filter(m => !(m.zones || []).includes("B")).map(m => m.id).join(", "));
 ok("bench-requiring DB moves stay out of Zone B", ["db-bench", "db-incline-bench", "db-fly"].every(id => !(movements.find(m => m.id === id).zones || []).includes("B")));
 ok("nothing is named 'Echo' anymore", movements.every(m => !/Echo/i.test(m.name)));
 
@@ -626,6 +626,35 @@ ok("PHAT-only movements are programDefault:false", ["weighted-pull-up", "rack-ch
 const phatCode = G.encodeSession(phat);
 const phatDecoded = G.decodeSession(phatCode, movements);
 ok("PHAT session round-trips through share encode/decode", phatDecoded.mode === "phat" && phatDecoded.blocks[0].items[0].movement.id === "pendlay-row-bb");
+
+console.log("\n== Arnold Volume fixed template ==");
+ok("5 Arnold days defined (3 in V1, 2 in V2)", Object.keys(G.ARNOLD_DAYS).length === 5);
+ok("two variations present", Object.values(G.ARNOLD_DAYS).filter(d => d.variation === 1).length === 3 && Object.values(G.ARNOLD_DAYS).filter(d => d.variation === 2).length === 2);
+const arnAll = Object.keys(G.ARNOLD_DAYS).flatMap(d => G.ARNOLD_DAYS[d].blocks.flatMap(b => b.items.map(i => i.id)));
+ok("every Arnold exercise resolves to a real movement", arnAll.every(id => mvIds.has(id)), arnAll.filter(id => !mvIds.has(id)).join(", "));
+const arn = G.buildArnoldSession(DATA, { today, maxes: {}, settings: {}, progress: {}, slots: {}, day: "Arnold V2 — Chest, Back & Legs" });
+ok("Arnold session mode is arnold", arn.mode === "arnold");
+ok("isFixedMode treats arnold as fixed", G.isFixedMode("arnold") && G.isFixedMode("phat") && !G.isFixedMode("program"));
+ok("Arnold is set in stone: V2 chest opens with Bench 5×6–10", arn.blocks[0].items[0].movement.id === "bench-press-bb" && arn.blocks[0].items[0].prescription === "5 × 6–10");
+// Deterministic regardless of seed.
+const arn2 = G.buildArnoldSession(DATA, { today, maxes: {}, settings: {}, progress: {}, slots: {}, day: "Arnold V2 — Chest, Back & Legs", seed: 42 });
+ok("Arnold is deterministic (same movements regardless of seed)",
+  JSON.stringify(arn.blocks.flatMap(b => b.items.map(i => i.movement.id))) === JSON.stringify(arn2.blocks.flatMap(b => b.items.map(i => i.movement.id))));
+// Machine items (leg press) get a weight field; bodyweight (dips, abs circuit) don't.
+const legPress = arn.blocks.flatMap(b => b.items).find(i => i.movement.id === "leg-press");
+ok("machine Arnold item gets a weight field (loadable forced)", legPress && legPress.load && legPress.weighted === true);
+const arnDips = arn.blocks.flatMap(b => b.items).find(i => i.movement.id === "tricep-dips");
+ok("bodyweight Arnold item has no weight field", arnDips && arnDips.load === null && arnDips.weighted === false);
+// A logged swap sticks.
+const arnSwap = G.buildArnoldSession(DATA, { today, maxes: {}, settings: {}, progress: {}, slots: { "arnold::Arnold V2 — Chest, Back & Legs::1::1": "bent-row-bb" }, day: "Arnold V2 — Chest, Back & Legs" });
+ok("a swapped Arnold slot sticks via slots", arnSwap.blocks[1].items[1].movement.id === "bent-row-bb");
+// Arnold-specific movements stay out of the dynamic program.
+ok("Arnold-only movements are programDefault:false", ["db-pullover", "t-bar-row", "barbell-curl", "wrist-curl", "abs-circuit", "clean-and-press-bb"].every(id => movements.find(m => m.id === id).programDefault === false));
+// Round-trips through share like any session.
+const arnDecoded = G.decodeSession(G.encodeSession(arn), movements);
+ok("Arnold session round-trips through share encode/decode", arnDecoded.mode === "arnold" && arnDecoded.blocks[0].items[0].movement.id === "bench-press-bb");
+// Set ranges parse to the upper bound for the volume meter.
+ok("set-range prescription parses (3–4 × 10 → 4 sets)", G.parseSets("3–4 × 10") === 4 && G.parseSets("4×5") === 4 && G.parseSets("3×3–5") === 3);
 
 console.log(`\n==== ${pass} passed, ${fail} failed ====`);
 process.exit(fail ? 1 : 0);
