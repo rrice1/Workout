@@ -138,8 +138,9 @@ flips to **"update ready — tap to refresh"** when a newer deploy has been pick
     (TM = 90%). It runs the **3-week wave** — *Week 1 = 5s (65/75/85+), Week 2 = 3s (70/80/90+),
     Week 3 = 5/3/1 (75/85/95+)*, each ending in an **AMRAP "+" set** — plus a **Week 4 deload**;
     switch weeks with the toggle at the top. Includes Wendler's warm-up sets and **Boring But Big**
-    supplemental work (5×10 @ 50% TM). Finish a cycle and bump that lift's 1RM (+5 upper / +10 lower)
-    to start the next. (See the in-app difference vs. nSuns: nSuns piles on ~17 sets/day and
+    supplemental work (5×10 @ 50% TM), plus a per-day **assistance guide** — concrete push / pull /
+    single-leg-or-core picks (50–100 reps of each) so you're not left guessing. Finish a cycle and
+    bump that lift's 1RM (+5 upper / +10 lower) to start the next. (See the in-app difference vs. nSuns: nSuns piles on ~17 sets/day and
     progresses weekly; 5/3/1 is 3 work sets and progresses per cycle.)
   - **Freestyle (CrossFit-style):** the original generator — Warm Up → Strength 1 → Strength 2
     superset → MetCon. Leave it on *Auto* to pick the freshest focus, or choose a specific one.

@@ -1785,11 +1785,29 @@ function buildTexasSession(data, opts) { return buildPctSession("texas", data, o
 // One main lift per day, four days. Same 90%-TM idea as nSuns but with a 3-week wave (5s, 3s,
 // 5/3/1) + a deload week, only 3 work sets, and a slower per-cycle progression. Supplemental work
 // is "Boring But Big" (5×10 @ 50% TM of the same lift).
+// Each day carries concrete assistance picks (Wendler's push / pull / single-leg-or-core buckets):
+// 50–100 reps of each, choosing one movement per bucket. Tailored to the day's lift.
 const T531_LIFTS = {
-  "5/3/1 — Press Day": { base: "press", id: "strict-press-bb" },
-  "5/3/1 — Deadlift Day": { base: "deadlift", id: "deadlift-bb" },
-  "5/3/1 — Bench Day": { base: "bench", id: "bench-press-bb" },
-  "5/3/1 — Squat Day": { base: "squat", id: "back-squat-bb" },
+  "5/3/1 — Press Day": { base: "press", id: "strict-press-bb", assist: [
+    { cat: "Push", picks: ["Dips", "Triceps pushdown", "Close-grip bench"] },
+    { cat: "Pull", picks: ["Chin-ups", "Lat pulldown", "DB row"] },
+    { cat: "Single-leg / core", picks: ["Hanging leg raise", "Ab wheel", "Plank"] },
+  ] },
+  "5/3/1 — Deadlift Day": { base: "deadlift", id: "deadlift-bb", assist: [
+    { cat: "Single-leg", picks: ["Walking lunges", "DB step-ups", "Leg press"] },
+    { cat: "Pull / posterior", picks: ["Chin-ups", "DB row", "Back extensions"] },
+    { cat: "Core", picks: ["Hanging leg raise", "Ab wheel", "Plank"] },
+  ] },
+  "5/3/1 — Bench Day": { base: "bench", id: "bench-press-bb", assist: [
+    { cat: "Push", picks: ["Incline DB press", "Dips", "Triceps pushdown"] },
+    { cat: "Pull", picks: ["DB row", "Face pulls", "Chin-ups"] },
+    { cat: "Single-leg / core", picks: ["Hanging leg raise", "Cable crunch", "Plank"] },
+  ] },
+  "5/3/1 — Squat Day": { base: "squat", id: "back-squat-bb", assist: [
+    { cat: "Single-leg", picks: ["Walking lunges", "Bulgarian split squat", "Leg press"] },
+    { cat: "Pull / posterior", picks: ["Leg curls", "Back extensions", "Chin-ups"] },
+    { cat: "Core", picks: ["Hanging leg raise", "Ab wheel", "Cable crunch"] },
+  ] },
 };
 const T531_WEEKS = {
   1: { name: "Week 1 — 5s", sets: [{ pct: 65, reps: 5 }, { pct: 75, reps: 5 }, { pct: 85, reps: 5, amrap: true }] },
@@ -1826,7 +1844,7 @@ function buildT531Session(data, opts) {
   }
   return { date: opts.today, focus: opts.day, mode: "t531", week, weekName: wk.name, deload: !!wk.deload,
     category: (cfg.base === "squat" || cfg.base === "deadlift") ? "lower" : "upper",
-    assistance: "Push / pull / core accessories — 50–100 reps total, your choice", zonePath: ["B"], blocks, seed: opts.seed || 1 };
+    assistance: cfg.assist, zonePath: ["B"], blocks, seed: opts.seed || 1 };
 }
 
 
@@ -1934,7 +1952,7 @@ if (typeof module !== "undefined" && module.exports) {
 // ============================================================================
 if (typeof document !== "undefined") {
   const STORE_KEY = "wgen.state.v1";
-  const APP_VERSION = "v32"; // keep in sync with CACHE in service-worker.js; bump on each deploy
+  const APP_VERSION = "v33"; // keep in sync with CACHE in service-worker.js; bump on each deploy
   let DATA = { movements: [], gym: {} };
   let STATE = loadState();
   let CURRENT = null; // current generated session
@@ -2273,8 +2291,11 @@ if (typeof document !== "undefined") {
       `<div class="stoolbar"><button id="saveBtn">Save</button></div></div>`;
     html += oneRMEditorHTML(["squat", "bench", "deadlift", "press"], "Enter a true 1RM per lift (lb). Training max = 90%, rounded to 5. Finished the 3-week cycle? Add 5 lb (press/bench) or 10 lb (squat/deadlift) to that lift's 1RM to start the next one.");
     CURRENT.blocks.forEach((b) => b.items.forEach((it) => { html += liftSetTableHTML(it); }));
+    const aRows = (CURRENT.assistance || []).map((c) =>
+      `<tr><td>${c.cat}</td><td>${c.picks.join(" · ")}</td></tr>`).join("");
     html += `<div class="block"><div class="bhead"><h3>Assistance</h3></div>` +
-      `<div class="bstruct">${CURRENT.assistance}.</div></div>`;
+      `<div class="bstruct">Do <b>50–100 reps</b> of each — pick one movement per row (or swap in your own):</div>` +
+      `<table class="nssets"><tr><th>Type</th><th>Pick one</th></tr>${aRows}</table></div>`;
     el.innerHTML = html;
     document.getElementById("saveBtn").onclick = () => saveWorkout();
     el.querySelectorAll(".wkbtn").forEach((btn) => btn.onclick = () => {

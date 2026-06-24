@@ -783,6 +783,17 @@ ok("deload: 3 sets (no warm-up/AMRAP) and no BBB block", (() => { const s = w4.b
 ok("weeks 1–3 add a Boring But Big 5×10 @ 50% TM block", (() => { const b = w1.blocks[1]; return b && b.items[0].sets.length === 5 && b.items[0].sets[0].reps === 10 && b.items[0].sets[0].pct === 50; })());
 ok("5/3/1 reuses the same four 1RMs as nSuns (TM = 90%)", w1.blocks[0].items[0].tm.him === G.nsunsTM(225));
 ok("no 1RM → no weight (prompts entry)", G.buildT531Session(DATA, { day: "5/3/1 — Squat Day", today, maxes: {}, settings: {}, week: 1 }).blocks[0].items[0].sets[0].him === null);
+ok("5/3/1 days carry concrete assistance picks (push/pull/single-leg-core), not just a note", (() => {
+  return Object.keys(G.T531_LIFTS).every((d) => {
+    const a = G.buildT531Session(DATA, { day: d, today, maxes: {}, settings: {}, week: 1 }).assistance;
+    return Array.isArray(a) && a.length === 3 && a.every((c) => c.cat && Array.isArray(c.picks) && c.picks.length >= 2);
+  });
+})());
+ok("upper days suggest a push bucket, lower days suggest single-leg", (() => {
+  const press = G.buildT531Session(DATA, { day: "5/3/1 — Press Day", today, maxes: {}, settings: {}, week: 1 }).assistance.map((c) => c.cat);
+  const squat = G.buildT531Session(DATA, { day: "5/3/1 — Squat Day", today, maxes: {}, settings: {}, week: 1 }).assistance.map((c) => c.cat);
+  return press.includes("Push") && squat.includes("Single-leg");
+})());
 
 console.log(`\n==== ${pass} passed, ${fail} failed ====`);
 process.exit(fail ? 1 : 0);
