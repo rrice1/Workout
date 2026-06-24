@@ -779,20 +779,26 @@ const w3 = G.buildT531Session(DATA, { day: "5/3/1 — Bench Day", today, maxes: 
 ok("week 2 is the 3s (70/80/90)", (() => { const w = w2.blocks[0].items[0].sets.filter(x => !x.warmup); return w[0].pct === 70 && w[1].pct === 80 && w[2].pct === 90 && w[2].reps === 3; })());
 ok("week 3 is 5/3/1 (75/85/95, top single)", (() => { const w = w3.blocks[0].items[0].sets.filter(x => !x.warmup); return w[0].pct === 75 && w[2].pct === 95 && w[2].reps === 1; })());
 const w4 = G.buildT531Session(DATA, { day: "5/3/1 — Bench Day", today, maxes: t531Max, settings: tBars, week: 4 });
-ok("deload: 3 sets (no warm-up/AMRAP) and no BBB block", (() => { const s = w4.blocks[0].items[0].sets; return w4.blocks.length === 1 && s.length === 3 && s.every(x => !x.amrap && !x.warmup); })());
+ok("deload: main is 3 sets (no warm-up/AMRAP) and no BBB block", (() => { const s = w4.blocks[0].items[0].sets; const hasBBB = w4.blocks.some(b => /Boring But Big/.test(b.name)); return !hasBBB && s.length === 3 && s.every(x => !x.amrap && !x.warmup); })());
 ok("weeks 1–3 add a Boring But Big 5×10 @ 50% TM block", (() => { const b = w1.blocks[1]; return b && b.items[0].sets.length === 5 && b.items[0].sets[0].reps === 10 && b.items[0].sets[0].pct === 50; })());
 ok("5/3/1 reuses the same four 1RMs as nSuns (TM = 90%)", w1.blocks[0].items[0].tm.him === G.nsunsTM(225));
 ok("no 1RM → no weight (prompts entry)", G.buildT531Session(DATA, { day: "5/3/1 — Squat Day", today, maxes: {}, settings: {}, week: 1 }).blocks[0].items[0].sets[0].him === null);
-ok("5/3/1 days carry concrete assistance picks (push/pull/single-leg-core), not just a note", (() => {
+ok("5/3/1 seeds 3 swappable/loggable accessories per day (real items, not a text note)", (() => {
   return Object.keys(G.T531_LIFTS).every((d) => {
-    const a = G.buildT531Session(DATA, { day: d, today, maxes: {}, settings: {}, week: 1 }).assistance;
-    return Array.isArray(a) && a.length === 3 && a.every((c) => c.cat && Array.isArray(c.picks) && c.picks.length >= 2);
+    const acc = G.buildT531Session(DATA, { day: d, today, maxes: {}, settings: {}, progress: {}, slots: {}, week: 1 }).blocks.find((b) => b.role === "accessory");
+    return acc && acc.items.length === 3 && acc.items.every((it) => it.movement && it.load && it.weighted === true && it.slotKey);
   });
 })());
-ok("upper days suggest a push bucket, lower days suggest single-leg", (() => {
-  const press = G.buildT531Session(DATA, { day: "5/3/1 — Press Day", today, maxes: {}, settings: {}, week: 1 }).assistance.map((c) => c.cat);
-  const squat = G.buildT531Session(DATA, { day: "5/3/1 — Squat Day", today, maxes: {}, settings: {}, week: 1 }).assistance.map((c) => c.cat);
-  return press.includes("Push") && squat.includes("Single-leg");
+ok("5/3/1 accessories resolve to real movements", (() => {
+  const ids = Object.keys(G.T531_LIFTS).flatMap((d) => G.T531_LIFTS[d].assist.map((a) => a.id));
+  return ids.every((id) => mvIds.has(id));
+})());
+ok("a logged accessory swap sticks via slots", G.buildT531Session(DATA, { day: "5/3/1 — Press Day", today, maxes: {}, settings: {}, progress: {}, slots: { "t531acc::5/3/1 — Press Day::0": "bench-box-dip" }, week: 1 }).blocks.find((b) => b.role === "accessory").items[0].movement.id === "bench-box-dip");
+ok("computed % items are excluded from logging; accessories are included", (() => {
+  const s = G.buildT531Session(DATA, { day: "5/3/1 — Squat Day", today, maxes: {}, settings: {}, progress: {}, slots: {}, week: 1 });
+  const loggable = s.blocks.flatMap((b) => b.items).filter((it) => !it.sets);
+  const computed = s.blocks.flatMap((b) => b.items).filter((it) => it.sets);
+  return loggable.length === 3 && computed.length >= 1; // 3 accessories loggable; main+BBB computed
 })());
 
 console.log(`\n==== ${pass} passed, ${fail} failed ====`);

@@ -1785,28 +1785,29 @@ function buildTexasSession(data, opts) { return buildPctSession("texas", data, o
 // One main lift per day, four days. Same 90%-TM idea as nSuns but with a 3-week wave (5s, 3s,
 // 5/3/1) + a deload week, only 3 work sets, and a slower per-cycle progression. Supplemental work
 // is "Boring But Big" (5×10 @ 50% TM of the same lift).
-// Each day carries concrete assistance picks (Wendler's push / pull / single-leg-or-core buckets):
-// 50–100 reps of each, choosing one movement per bucket. Tailored to the day's lift.
+// Each day seeds a push / pull / single-leg-or-core accessory with a sensible default movement
+// (swap it, avoid it, edit/log the weight — same as the freestyle generator). Wendler's guidance is
+// 50–100 reps of each; the schemes get you there.
 const T531_LIFTS = {
   "5/3/1 — Press Day": { base: "press", id: "strict-press-bb", assist: [
-    { cat: "Push", picks: ["Dips", "Triceps pushdown", "Close-grip bench"] },
-    { cat: "Pull", picks: ["Chin-ups", "Lat pulldown", "DB row"] },
-    { cat: "Single-leg / core", picks: ["Hanging leg raise", "Ab wheel", "Plank"] },
+    { id: "tricep-dips", scheme: "4×10–15", reps: 12 },   // push
+    { id: "chin-up", scheme: "4×8–12", reps: 10 },        // pull
+    { id: "toes-to-bar", scheme: "3×12–15", reps: 12 },   // core
   ] },
   "5/3/1 — Deadlift Day": { base: "deadlift", id: "deadlift-bb", assist: [
-    { cat: "Single-leg", picks: ["Walking lunges", "DB step-ups", "Leg press"] },
-    { cat: "Pull / posterior", picks: ["Chin-ups", "DB row", "Back extensions"] },
-    { cat: "Core", picks: ["Hanging leg raise", "Ab wheel", "Plank"] },
+    { id: "walking-lunge", scheme: "3×10–12", reps: 10 }, // single-leg
+    { id: "chin-up", scheme: "4×8–12", reps: 10 },        // pull
+    { id: "toes-to-bar", scheme: "3×12–15", reps: 12 },   // core
   ] },
   "5/3/1 — Bench Day": { base: "bench", id: "bench-press-bb", assist: [
-    { cat: "Push", picks: ["Incline DB press", "Dips", "Triceps pushdown"] },
-    { cat: "Pull", picks: ["DB row", "Face pulls", "Chin-ups"] },
-    { cat: "Single-leg / core", picks: ["Hanging leg raise", "Cable crunch", "Plank"] },
+    { id: "db-incline-bench", scheme: "4×8–12", reps: 10 }, // push
+    { id: "db-row", scheme: "4×8–12", reps: 10 },           // pull
+    { id: "cable-crunch", scheme: "3×12–15", reps: 12 },    // core
   ] },
   "5/3/1 — Squat Day": { base: "squat", id: "back-squat-bb", assist: [
-    { cat: "Single-leg", picks: ["Walking lunges", "Bulgarian split squat", "Leg press"] },
-    { cat: "Pull / posterior", picks: ["Leg curls", "Back extensions", "Chin-ups"] },
-    { cat: "Core", picks: ["Hanging leg raise", "Ab wheel", "Cable crunch"] },
+    { id: "walking-lunge", scheme: "3×10–12", reps: 10 },  // single-leg
+    { id: "leg-curl", scheme: "4×8–12", reps: 10 },        // posterior
+    { id: "toes-to-bar", scheme: "3×12–15", reps: 12 },    // core
   ] },
 };
 const T531_WEEKS = {
@@ -1820,6 +1821,7 @@ const T531_WARMUP = [{ pct: 40, reps: 5, warmup: true }, { pct: 50, reps: 5, war
 function buildT531Session(data, opts) {
   const { movements, gym } = data;
   const inv = gym.inventory, settings = opts.settings || {}, maxes = opts.maxes || {};
+  const progress = opts.progress || {}, slots = opts.slots || {};
   const cfg = T531_LIFTS[opts.day];
   if (!cfg) throw new Error("Unknown 5/3/1 day: " + opts.day);
   const week = T531_WEEKS[opts.week] ? opts.week : 1;
@@ -1842,9 +1844,19 @@ function buildT531Session(data, opts) {
     blocks.push({ name: "Supplemental — Boring But Big", role: "strength2", intensity: "med", zone: "B", zoneName: gym.zones.B ? gym.zones.B.name : "",
       items: [{ movement: m, base: cfg.base, t: "BBB 5×10", tm, oneRM, sets: bbbSets, slotKey: `t531bbb::${opts.day}`, prescription: "5×10 @ 50% TM" }] });
   }
+  // Assistance: real, swappable, loggable accessory items (default movement per push/pull/core slot,
+  // a logged swap sticks). These are standard cards — not the computed % tables.
+  const accItems = (cfg.assist || []).map((a, i) => {
+    const sk = `t531acc::${opts.day}::${i}`;
+    const mid2 = (slots[sk] && byId[slots[sk]]) ? slots[sk] : a.id;
+    const am = byId[mid2] || byId[a.id];
+    return { movement: am, prescription: a.scheme, load: phatLoadSuggestion(am, a.reps || 12, maxes, settings, inv, progress),
+      slotKey: sk, weighted: true, intensity: "light" };
+  });
+  if (accItems.length) blocks.push({ name: "Assistance — swap / avoid / log freely", role: "accessory", intensity: "light", items: accItems });
   return { date: opts.today, focus: opts.day, mode: "t531", week, weekName: wk.name, deload: !!wk.deload,
     category: (cfg.base === "squat" || cfg.base === "deadlift") ? "lower" : "upper",
-    assistance: cfg.assist, zonePath: ["B"], blocks, seed: opts.seed || 1 };
+    zonePath: ["B"], blocks, seed: opts.seed || 1 };
 }
 
 
@@ -1952,7 +1964,7 @@ if (typeof module !== "undefined" && module.exports) {
 // ============================================================================
 if (typeof document !== "undefined") {
   const STORE_KEY = "wgen.state.v1";
-  const APP_VERSION = "v33"; // keep in sync with CACHE in service-worker.js; bump on each deploy
+  const APP_VERSION = "v34"; // keep in sync with CACHE in service-worker.js; bump on each deploy
   let DATA = { movements: [], gym: {} };
   let STATE = loadState();
   let CURRENT = null; // current generated session
@@ -2158,6 +2170,38 @@ if (typeof document !== "undefined") {
     };
   }
 
+  // One movement "card" (name, prescription, his/hers loads, swap/avoid/remove). Shared by the
+  // freestyle/fixed renderer and the 5/3/1 accessory section so they behave identically.
+  function moveCardHTML(it, bi, ii) {
+    let h = `<div class="move" data-bi="${bi}" data-ii="${ii}">`;
+    h += `<div class="mname">${it.movement.name} <span class="muscles">${(it.movement.muscles || []).join(" · ")}</span></div>`;
+    const mz = (it.movement.zones || []).join("/");
+    h += `<div class="mpresc">${it.prescription || ""}${mz ? ` <span class="mzone">Zone ${mz}</span>` : ""}</div>`;
+    if (it.load) {
+      const lastH = it.load.him.last ? `<span class="last">${it.load.him.last}</span>` : "";
+      const lastR = it.load.her.last ? `<span class="last">${it.load.her.last}</span>` : "";
+      h += `<div class="loads">` +
+        `<span class="loadedit" data-bi="${bi}" data-ii="${ii}" data-who="him">You: <b>${it.load.him.display}</b> ${lastH} ✎</span>` +
+        `<span class="loadedit" data-bi="${bi}" data-ii="${ii}" data-who="her">Her: <b>${it.load.her.display}</b> ${lastR} ✎</span>` +
+        `</div>`;
+    } else if (trackingType(it.movement) === "time") {
+      const hs = holdSuggestion(it.movement, parseTargetSeconds(it.prescription), STATE.progress);
+      if (hs) {
+        const lh = hs.him.last ? `<span class="last">${hs.him.last}</span>` : "";
+        const lr = hs.her.last ? `<span class="last">${hs.her.last}</span>` : "";
+        h += `<div class="loads"><span>You: <b>${hs.him.display}</b> ${lh}</span><span>Her: <b>${hs.her.display}</b> ${lr}</span></div>`;
+      }
+    }
+    h += `<div class="mactions"><button class="swap" data-bi="${bi}" data-ii="${ii}">Swap</button><button class="avoid" data-bi="${bi}" data-ii="${ii}">Don't suggest</button><button class="rm" data-bi="${bi}" data-ii="${ii}">✕ Remove</button></div>`;
+    return h + `</div>`;
+  }
+  function wireMoveCardButtons(el) {
+    el.querySelectorAll("button.swap").forEach((b) => b.onclick = () => swapMove(+b.dataset.bi, +b.dataset.ii));
+    el.querySelectorAll("button.avoid").forEach((b) => b.onclick = () => avoidMove(+b.dataset.bi, +b.dataset.ii));
+    el.querySelectorAll("button.rm").forEach((b) => b.onclick = () => removeMove(+b.dataset.bi, +b.dataset.ii));
+    el.querySelectorAll(".loadedit").forEach((s) => s.onclick = () => editLoad(+s.dataset.bi, +s.dataset.ii, s.dataset.who));
+  }
+
   function renderSession() {
     const el = document.getElementById("session");
     if (!CURRENT) { el.innerHTML = ""; return; }
@@ -2181,36 +2225,11 @@ if (typeof document !== "undefined") {
       const zoneTag = bk.zone ? `<span class="zone">Zone ${bk.zone} — ${bk.zoneName}</span>` : `<span class="zone">moves span zones</span>`;
       html += `<div class="block"><div class="bhead"><h3>${bk.name}</h3><span class="time">${bk.time || ""}</span></div>`;
       html += `<div class="bstruct">${bk.structure || ""} ${zoneTag}</div>`;
-      bk.items.forEach((it, ii) => {
-        html += `<div class="move" data-bi="${bi}" data-ii="${ii}">`;
-        html += `<div class="mname">${it.movement.name} <span class="muscles">${(it.movement.muscles || []).join(" · ")}</span></div>`;
-        const mz = (it.movement.zones || []).join("/");
-        html += `<div class="mpresc">${it.prescription || ""}${mz ? ` <span class="mzone">Zone ${mz}</span>` : ""}</div>`;
-        if (it.load) {
-          const lastH = it.load.him.last ? `<span class="last">${it.load.him.last}</span>` : "";
-          const lastR = it.load.her.last ? `<span class="last">${it.load.her.last}</span>` : "";
-          html += `<div class="loads">` +
-            `<span class="loadedit" data-bi="${bi}" data-ii="${ii}" data-who="him">You: <b>${it.load.him.display}</b> ${lastH} ✎</span>` +
-            `<span class="loadedit" data-bi="${bi}" data-ii="${ii}" data-who="her">Her: <b>${it.load.her.display}</b> ${lastR} ✎</span>` +
-            `</div>`;
-        } else if (trackingType(it.movement) === "time") {
-          const hs = holdSuggestion(it.movement, parseTargetSeconds(it.prescription), STATE.progress);
-          if (hs) {
-            const lh = hs.him.last ? `<span class="last">${hs.him.last}</span>` : "";
-            const lr = hs.her.last ? `<span class="last">${hs.her.last}</span>` : "";
-            html += `<div class="loads"><span>You: <b>${hs.him.display}</b> ${lh}</span><span>Her: <b>${hs.her.display}</b> ${lr}</span></div>`;
-          }
-        }
-        html += `<div class="mactions"><button class="swap" data-bi="${bi}" data-ii="${ii}">Swap</button><button class="avoid" data-bi="${bi}" data-ii="${ii}">Don't suggest</button><button class="rm" data-bi="${bi}" data-ii="${ii}">✕ Remove</button></div>`;
-        html += `</div>`;
-      });
+      bk.items.forEach((it, ii) => { html += moveCardHTML(it, bi, ii); });
       html += `</div>`;
     });
     el.innerHTML = html;
-    el.querySelectorAll("button.swap").forEach((b) => b.onclick = () => swapMove(+b.dataset.bi, +b.dataset.ii));
-    el.querySelectorAll("button.avoid").forEach((b) => b.onclick = () => avoidMove(+b.dataset.bi, +b.dataset.ii));
-    el.querySelectorAll("button.rm").forEach((b) => b.onclick = () => removeMove(+b.dataset.bi, +b.dataset.ii));
-    el.querySelectorAll(".loadedit").forEach((s) => s.onclick = () => editLoad(+s.dataset.bi, +s.dataset.ii, s.dataset.who));
+    wireMoveCardButtons(el);
     const byId = (id) => document.getElementById(id);
     byId("addAcc").onclick = () => addExercise("accessory");
     byId("addFin").onclick = () => addExercise("finisher");
@@ -2290,19 +2309,26 @@ if (typeof document !== "undefined") {
       `<div class="dpw">Cycle week: ${weekBtns}</div>` +
       `<div class="stoolbar"><button id="saveBtn">Save</button></div></div>`;
     html += oneRMEditorHTML(["squat", "bench", "deadlift", "press"], "Enter a true 1RM per lift (lb). Training max = 90%, rounded to 5. Finished the 3-week cycle? Add 5 lb (press/bench) or 10 lb (squat/deadlift) to that lift's 1RM to start the next one.");
-    CURRENT.blocks.forEach((b) => b.items.forEach((it) => { html += liftSetTableHTML(it); }));
-    const aRows = (CURRENT.assistance || []).map((c) =>
-      `<tr><td>${c.cat}</td><td>${c.picks.join(" · ")}</td></tr>`).join("");
-    html += `<div class="block"><div class="bhead"><h3>Assistance</h3></div>` +
-      `<div class="bstruct">Do <b>50–100 reps</b> of each — pick one movement per row (or swap in your own):</div>` +
-      `<table class="nssets"><tr><th>Type</th><th>Pick one</th></tr>${aRows}</table></div>`;
+    // Main lift + BBB are computed % tables; the assistance block is real swappable/loggable cards.
+    CURRENT.blocks.forEach((b, bi) => {
+      const computed = b.items[0] && b.items[0].sets;
+      if (computed) { b.items.forEach((it) => { html += liftSetTableHTML(it); }); return; }
+      html += `<div class="block"><div class="bhead"><h3>${b.name}</h3></div>` +
+        `<div class="bstruct">Do ~50–100 reps of each — tap <b>Swap</b> for an alternative, <b>Don't suggest</b> to drop it, or ✎ to log your weight.</div>`;
+      b.items.forEach((it, ii) => { html += moveCardHTML(it, bi, ii); });
+      html += `</div>`;
+    });
+    html += `<div class="stoolbar"><button id="addAcc">+ Accessory</button>${UNDO.length ? `<button id="undoBtn">↶ Undo</button>` : ""}</div>`;
     el.innerHTML = html;
     document.getElementById("saveBtn").onclick = () => saveWorkout();
     el.querySelectorAll(".wkbtn").forEach((btn) => btn.onclick = () => {
       STATE.settings = STATE.settings || {}; STATE.settings.t531week = +btn.dataset.w; saveState(); generate(CURRENT.focus);
     });
+    wireMoveCardButtons(el);
+    const addBtn = document.getElementById("addAcc"); if (addBtn) addBtn.onclick = () => addExercise("accessory");
+    const undoBtn = document.getElementById("undoBtn"); if (undoBtn) undoBtn.onclick = () => undoLast();
     wireOneRMInputs(el, () => generate(CURRENT.focus));
-    document.getElementById("logBtn").disabled = true;
+    document.getElementById("logBtn").disabled = false;
   }
 
   function recomputeZones() {
@@ -2484,8 +2510,9 @@ if (typeof document !== "undefined") {
     snapshot();
     const next = cands[0];
     const slot = slotForRole(role);
-    const isFixed = isFixedMode(CURRENT.mode);
-    // Fixed templates (PHAT/Arnold) keep the prescribed scheme on a swap, just change the movement.
+    // Fixed templates (PHAT/Arnold/…) and any "weighted" item (e.g. a 5/3/1 accessory) keep the
+    // prescribed scheme on a swap and force a tracked load row; the dynamic generator re-prescribes.
+    const isFixed = isFixedMode(CURRENT.mode) || !!item.weighted;
     const keepScheme = isFixed || slot === "strength1";
     const reps = isFixed ? (+((String(item.prescription).match(/[×x]\s*(\d+)/) || [])[1]) || 8)
       : (slot === "strength1" ? 3 : (next.pattern === "core" ? 12 : 10));
@@ -2609,6 +2636,7 @@ if (typeof document !== "undefined") {
       const role = b.role || "";
       b.items.forEach((it, ii) => {
         if (role === "warmup" || role === "mobility" || it.movement.pattern === "mobility") return;
+        if (it.sets) return; // computed %-of-1RM tables (nSuns/5-3-1 main + BBB) progress via the 1RM, not the log form
         // PHAT marks machine/cable/weighted-bodyweight items weighted so they log a weight too.
         rows.push({ bi, ii, it, tt: it.weighted ? "load_reps" : trackingType(it.movement) });
       });
