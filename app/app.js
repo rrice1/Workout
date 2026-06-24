@@ -1423,6 +1423,56 @@ function buildNsunsSession(data, opts) {
   return { date: opts.today, focus: opts.day, mode: "nsuns", category: cfg.category, assistance: cfg.assistance, zonePath: ["B"], blocks, seed: opts.seed || 1 };
 }
 
+// ----------------------------------------------------------------------------
+// Wendler 5/3/1 — the classic, low-volume original
+// ----------------------------------------------------------------------------
+// One main lift per day, four days. Same 90%-TM idea as nSuns but with a 3-week wave (5s, 3s,
+// 5/3/1) + a deload week, only 3 work sets, and a slower per-cycle progression. Supplemental work
+// is "Boring But Big" (5×10 @ 50% TM of the same lift).
+const T531_LIFTS = {
+  "5/3/1 — Press Day": { base: "press", id: "strict-press-bb" },
+  "5/3/1 — Deadlift Day": { base: "deadlift", id: "deadlift-bb" },
+  "5/3/1 — Bench Day": { base: "bench", id: "bench-press-bb" },
+  "5/3/1 — Squat Day": { base: "squat", id: "back-squat-bb" },
+};
+const T531_WEEKS = {
+  1: { name: "Week 1 — 5s", sets: [{ pct: 65, reps: 5 }, { pct: 75, reps: 5 }, { pct: 85, reps: 5, amrap: true }] },
+  2: { name: "Week 2 — 3s", sets: [{ pct: 70, reps: 3 }, { pct: 80, reps: 3 }, { pct: 90, reps: 3, amrap: true }] },
+  3: { name: "Week 3 — 5/3/1", sets: [{ pct: 75, reps: 5 }, { pct: 85, reps: 3 }, { pct: 95, reps: 1, amrap: true }] },
+  4: { name: "Week 4 — Deload", deload: true, sets: [{ pct: 40, reps: 5 }, { pct: 50, reps: 5 }, { pct: 60, reps: 5 }] },
+};
+const T531_WARMUP = [{ pct: 40, reps: 5, warmup: true }, { pct: 50, reps: 5, warmup: true }, { pct: 60, reps: 3, warmup: true }];
+
+function buildT531Session(data, opts) {
+  const { movements, gym } = data;
+  const inv = gym.inventory, settings = opts.settings || {}, maxes = opts.maxes || {};
+  const cfg = T531_LIFTS[opts.day];
+  if (!cfg) throw new Error("Unknown 5/3/1 day: " + opts.day);
+  const week = T531_WEEKS[opts.week] ? opts.week : 1;
+  const wk = T531_WEEKS[week];
+  const byId = {}; for (const m of movements) byId[m.id] = m;
+  const m = byId[cfg.id], mid = cfg.id;
+  const barKgOf = (who) => (settings.bars && settings.bars[who] === "womens") ? inv.barbells.womens_kg : inv.barbells.mens_kg;
+  const tm = {}, oneRM = {};
+  for (const who of ["him", "her"]) { const orm = maxes[mid] && maxes[mid][who] != null ? maxes[mid][who] : null; oneRM[who] = orm; tm[who] = nsunsTM(orm); }
+  const mkset = (s) => {
+    const set = { pct: s.pct, reps: s.reps, amrap: !!s.amrap, warmup: !!s.warmup };
+    for (const who of ["him", "her"]) { if (tm[who]) { const r = roundLoad(tm[who] * s.pct / 100, "barbell", inv, barKgOf(who)); set[who] = r ? r.valueLb : null; } else set[who] = null; }
+    return set;
+  };
+  const mainSets = (wk.deload ? [] : T531_WARMUP).concat(wk.sets).map(mkset);
+  const blocks = [{ name: `Main lift — ${wk.name}`, role: "strength1", intensity: "heavy", zone: "B", zoneName: gym.zones.B ? gym.zones.B.name : "",
+    items: [{ movement: m, base: cfg.base, t: "Work sets", tm, oneRM, sets: mainSets, slotKey: `t531::${opts.day}`, prescription: wk.name }] }];
+  if (!wk.deload) {
+    const bbbSets = [0, 1, 2, 3, 4].map(() => mkset({ pct: 50, reps: 10 }));
+    blocks.push({ name: "Supplemental — Boring But Big", role: "strength2", intensity: "med", zone: "B", zoneName: gym.zones.B ? gym.zones.B.name : "",
+      items: [{ movement: m, base: cfg.base, t: "BBB 5×10", tm, oneRM, sets: bbbSets, slotKey: `t531bbb::${opts.day}`, prescription: "5×10 @ 50% TM" }] });
+  }
+  return { date: opts.today, focus: opts.day, mode: "t531", week, weekName: wk.name, deload: !!wk.deload,
+    category: (cfg.base === "squat" || cfg.base === "deadlift") ? "lower" : "upper",
+    assistance: "Push / pull / core accessories — 50–100 reps total, your choice", zonePath: ["B"], blocks, seed: opts.seed || 1 };
+}
+
 
 // Assign each block the zone that ALL its movements share (honest label). If the
 // movements don't share a single zone (e.g. a superset straddling B and C), leave
@@ -1511,6 +1561,7 @@ if (typeof module !== "undefined" && module.exports) {
     dayMuscleRegions, sessionMuscleRegions, PHAT_DAYS, buildPhatSession, phatLoadSuggestion,
     ARNOLD_DAYS, buildArnoldSession, buildFixedSession, FIXED_TEMPLATES, isFixedMode,
     NSUNS_DAYS, buildNsunsSession, nsunsTM, NSUNS_LIFT_MOVEMENT, NSUNS_LIFT_LABEL,
+    T531_LIFTS, T531_WEEKS, buildT531Session,
     macrocycleWeek, macroBlockIndex, macroBlockKey, BLOCK_KEYS, BLOCK_NAMES, MACRO_BLOCKS, slotScheme,
     isTestWeek, estimate1RM, TEST_MAIN_SCHEME,
     weeklySets, parseSets, VOLUME_TARGETS,
@@ -1523,7 +1574,7 @@ if (typeof module !== "undefined" && module.exports) {
 // ============================================================================
 if (typeof document !== "undefined") {
   const STORE_KEY = "wgen.state.v1";
-  const APP_VERSION = "v26"; // keep in sync with CACHE in service-worker.js; bump on each deploy
+  const APP_VERSION = "v27"; // keep in sync with CACHE in service-worker.js; bump on each deploy
   let DATA = { movements: [], gym: {} };
   let STATE = loadState();
   let CURRENT = null; // current generated session
@@ -1611,6 +1662,8 @@ if (typeof document !== "undefined") {
       CURRENT = buildArnoldSession(DATA, Object.assign({ day: choice }, base));
     } else if (choice && NSUNS_DAYS[choice]) {
       CURRENT = buildNsunsSession(DATA, Object.assign({ day: choice }, base));
+    } else if (choice && T531_LIFTS[choice]) {
+      CURRENT = buildT531Session(DATA, Object.assign({ day: choice, week: (STATE.settings && STATE.settings.t531week) || 1 }, base));
     } else if (choice && PROGRAM_DAYS[choice]) {
       CURRENT = buildProgramSession(DATA, Object.assign({ day: choice, mesoWeek: mesocycleWeek(STATE.program), macroBlock: macroBlockKey(STATE.program) }, base));
     } else {
@@ -1678,6 +1731,7 @@ if (typeof document !== "undefined") {
     const arnoldOpts = (v) => Object.keys(ARNOLD_DAYS).filter((d) => ARNOLD_DAYS[d].variation === v)
       .map((d) => `<option value="${d}">${d}</option>`).join("");
     const nsuns = Object.keys(NSUNS_DAYS).map((d) => `<option value="${d}">${d}</option>`).join("");
+    const t531 = Object.keys(T531_LIFTS).map((d) => `<option value="${d}">${d}</option>`).join("");
     const freestyle = `<option value="">Auto (freshest)</option>` +
       Object.keys(FOCUSES).map((f) => `<option value="${f}">${f}</option>`).join("");
     sel.innerHTML =
@@ -1686,6 +1740,7 @@ if (typeof document !== "undefined") {
       `<optgroup label="Arnold Volume — Variation 1 (3-day split ×2)">${arnoldOpts(1)}</optgroup>` +
       `<optgroup label="Arnold Volume — Variation 2 (2-day split ×3)">${arnoldOpts(2)}</optgroup>` +
       `<optgroup label="nSuns 531 LP (6-day, % of 1RM)">${nsuns}</optgroup>` +
+      `<optgroup label="5/3/1 classic (4-day wave, % of 1RM)">${t531}</optgroup>` +
       `<optgroup label="Freestyle (CrossFit-style)">${freestyle}</optgroup>`;
     // Restore the last chosen workout so it sticks across reloads.
     sel.value = (STATE.settings && STATE.settings.lastFocus) || "";
@@ -1702,6 +1757,7 @@ if (typeof document !== "undefined") {
     if (!CURRENT) { el.innerHTML = ""; return; }
     STATE.current = CURRENT; saveState(); // auto-save so it survives reopening the app
     if (CURRENT.mode === "nsuns") return renderNsuns();
+    if (CURRENT.mode === "t531") return renderT531();
     const pathStr = CURRENT.zonePath.map((z) => `${z}·${DATA.gym.zones[z].name}`).join("  →  ");
     const crowd = DATA.gym.crowd;
     const busy = crowd && isBusyDay(["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][new Date(todayStr() + "T00:00:00").getDay()], crowd);
@@ -1759,44 +1815,78 @@ if (typeof document !== "undefined") {
   }
 
   // nSuns: a 1RM editor + a per-set weight table for each main lift (everything is a % of TM).
-  function renderNsuns() {
-    const el = document.getElementById("session");
+  // Shared by the percentage-of-1RM programs (nSuns, 5/3/1): a per-person 1RM entry table and a
+  // per-lift set table. Both read/write the four main-lift 1RMs in STATE.maxes.
+  function oneRMEditorHTML(note) {
     STATE.maxes = STATE.maxes || {};
     const lifts = ["squat", "bench", "deadlift", "press"];
     const ormVal = (base, who) => { const mid = NSUNS_LIFT_MOVEMENT[base]; return (STATE.maxes[mid] && STATE.maxes[mid][who] != null) ? STATE.maxes[mid][who] : ""; };
-    let html = `<div class="sesshead"><h2>${CURRENT.focus}</h2>` +
-      `<div class="path">nSuns 531 LP · every weight is a % of your training max (90% of 1RM)</div>` +
-      `<div class="stoolbar"><button id="saveBtn">Save</button></div></div>`;
-    html += `<div class="block"><div class="bhead"><h3>Your 1-rep maxes</h3></div>` +
-      `<div class="bstruct">Enter a true 1RM per lift (lb). Training max = 90%, rounded to 5. Got all your reps on the <b>+</b> (AMRAP) set? Bump that lift's 1RM here and the whole workout re-scales.</div>` +
+    return `<div class="block"><div class="bhead"><h3>Your 1-rep maxes</h3></div>` +
+      `<div class="bstruct">${note}</div>` +
       `<table class="nsrm"><tr><th></th><th>You</th><th>Her</th></tr>` +
       lifts.map((b) => `<tr><td>${NSUNS_LIFT_LABEL[b]}</td>` +
         `<td><input class="rmin" data-base="${b}" data-who="him" type="number" inputmode="numeric" value="${ormVal(b, "him")}" placeholder="—"></td>` +
         `<td><input class="rmin" data-base="${b}" data-who="her" type="number" inputmode="numeric" value="${ormVal(b, "her")}" placeholder="—"></td></tr>`).join("") +
       `</table></div>`;
-    CURRENT.blocks[0].items.forEach((it) => {
-      html += `<div class="block"><div class="bhead"><h3>${it.movement.name}</h3><span class="time">${it.t}</span></div>`;
-      html += `<div class="bstruct">Training max — You: <b>${it.tm.him ? it.tm.him + " lb" : "— set 1RM"}</b> · Her: <b>${it.tm.her ? it.tm.her + " lb" : "— set 1RM"}</b> <span class="mzone">Zone B</span></div>`;
-      html += `<table class="nssets"><tr><th>Set</th><th>%TM</th><th>You</th><th>Her</th></tr>`;
-      it.sets.forEach((s, i) => {
-        const rep = `×${s.reps}${s.amrap ? "+" : ""}`;
-        html += `<tr${s.amrap ? ` class="amrap"` : ""}><td>${i + 1}</td><td>${s.pct}%</td>` +
-          `<td>${s.him ? `${s.him} ${rep}` : `— ${rep}`}</td>` +
-          `<td>${s.her ? `${s.her} ${rep}` : `— ${rep}`}</td></tr>`;
-      });
-      html += `</table></div>`;
-    });
-    html += `<div class="block"><div class="bhead"><h3>Assistance</h3></div>` +
-      `<div class="bstruct">${CURRENT.assistance} — your choice of bodybuilding sets/reps (e.g. 5×10–15), kept light.</div></div>`;
-    el.innerHTML = html;
-    document.getElementById("saveBtn").onclick = () => saveWorkout();
+  }
+  function wireOneRMInputs(el, after) {
     el.querySelectorAll("input.rmin").forEach((inp) => inp.onchange = () => {
       const mid = NSUNS_LIFT_MOVEMENT[inp.dataset.base], who = inp.dataset.who, v = parseFloat(inp.value);
       STATE.maxes[mid] = STATE.maxes[mid] || {};
       if (isFinite(v) && v > 0) STATE.maxes[mid][who] = Math.round(v); else delete STATE.maxes[mid][who];
       saveState();
-      generate(CURRENT.focus); // re-scale every set from the new training max
+      after(); // re-scale every set from the new training max
     });
+  }
+  function liftSetTableHTML(it) {
+    let html = `<div class="block"><div class="bhead"><h3>${it.movement.name}</h3><span class="time">${it.t || ""}</span></div>`;
+    html += `<div class="bstruct">Training max — You: <b>${it.tm.him ? it.tm.him + " lb" : "— set 1RM"}</b> · Her: <b>${it.tm.her ? it.tm.her + " lb" : "— set 1RM"}</b> <span class="mzone">Zone B</span></div>`;
+    html += `<table class="nssets"><tr><th>Set</th><th>%TM</th><th>You</th><th>Her</th></tr>`;
+    let work = 0;
+    it.sets.forEach((s) => {
+      const rep = `×${s.reps}${s.amrap ? "+" : ""}`;
+      const cls = s.amrap ? ` class="amrap"` : (s.warmup ? ` class="warm"` : "");
+      const label = s.warmup ? "w" : (++work);
+      html += `<tr${cls}><td>${label}</td><td>${s.pct}%</td>` +
+        `<td>${s.him ? `${s.him} ${rep}` : `— ${rep}`}</td>` +
+        `<td>${s.her ? `${s.her} ${rep}` : `— ${rep}`}</td></tr>`;
+    });
+    return html + `</table></div>`;
+  }
+
+  function renderNsuns() {
+    const el = document.getElementById("session");
+    let html = `<div class="sesshead"><h2>${CURRENT.focus}</h2>` +
+      `<div class="path">nSuns 531 LP · every weight is a % of your training max (90% of 1RM)</div>` +
+      `<div class="stoolbar"><button id="saveBtn">Save</button></div></div>`;
+    html += oneRMEditorHTML("Enter a true 1RM per lift (lb). Training max = 90%, rounded to 5. Got all your reps on the <b>+</b> (AMRAP) set? Bump that lift's 1RM here and the whole workout re-scales.");
+    CURRENT.blocks[0].items.forEach((it) => { html += liftSetTableHTML(it); });
+    html += `<div class="block"><div class="bhead"><h3>Assistance</h3></div>` +
+      `<div class="bstruct">${CURRENT.assistance} — your choice of bodybuilding sets/reps (e.g. 5×10–15), kept light.</div></div>`;
+    el.innerHTML = html;
+    document.getElementById("saveBtn").onclick = () => saveWorkout();
+    wireOneRMInputs(el, () => generate(CURRENT.focus));
+    document.getElementById("logBtn").disabled = true;
+  }
+
+  function renderT531() {
+    const el = document.getElementById("session");
+    const wk = CURRENT.week || 1;
+    const weekBtns = [1, 2, 3, 4].map((w) => `<button class="wkbtn ${w === wk ? "on" : ""}" data-w="${w}">${w === 4 ? "Deload" : "Wk " + w}</button>`).join("");
+    let html = `<div class="sesshead"><h2>${CURRENT.focus}</h2>` +
+      `<div class="path">Wendler 5/3/1 · 3-week wave, weights are % of training max (90% of 1RM)</div>` +
+      `<div class="dpw">Cycle week: ${weekBtns}</div>` +
+      `<div class="stoolbar"><button id="saveBtn">Save</button></div></div>`;
+    html += oneRMEditorHTML("Enter a true 1RM per lift (lb). Training max = 90%, rounded to 5. Finished the 3-week cycle? Add 5 lb (press/bench) or 10 lb (squat/deadlift) to that lift's 1RM to start the next one.");
+    CURRENT.blocks.forEach((b) => b.items.forEach((it) => { html += liftSetTableHTML(it); }));
+    html += `<div class="block"><div class="bhead"><h3>Assistance</h3></div>` +
+      `<div class="bstruct">${CURRENT.assistance}.</div></div>`;
+    el.innerHTML = html;
+    document.getElementById("saveBtn").onclick = () => saveWorkout();
+    el.querySelectorAll(".wkbtn").forEach((btn) => btn.onclick = () => {
+      STATE.settings = STATE.settings || {}; STATE.settings.t531week = +btn.dataset.w; saveState(); generate(CURRENT.focus);
+    });
+    wireOneRMInputs(el, () => generate(CURRENT.focus));
     document.getElementById("logBtn").disabled = true;
   }
 

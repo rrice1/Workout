@@ -191,3 +191,6 @@ button.rm { color: #e06b6b; border-color: #5a2e2e; }
 .nssets td:first-child { color: var(--muted); width: 14%; }
 .nssets td:nth-child(2) { color: var(--muted); width: 18%; }
 .nssets tr.amrap td { color: var(--accent); font-weight: 600; }
+.nssets tr.warm td { color: var(--muted); font-style: italic; }
+.wkbtn { padding: 6px 10px; }
+.wkbtn.on { background: var(--accent); border-color: var(--accent); color: #1a0d07; font-weight: 700; }

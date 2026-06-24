@@ -682,5 +682,24 @@ const empty = G.buildNsunsSession(DATA, { day: "nSuns Mon — Bench / OHP", toda
 ok("no 1RM → no weights (prompts entry)", empty.blocks[0].items[0].tm.him === null && empty.blocks[0].items[0].sets[0].him === null);
 ok("nSuns lifts are conventional barbell movements", nsAll.every(id => DATA.movements.find(m => m.id === id).implement === "barbell"));
 
+console.log("\n== Wendler 5/3/1 (classic) ==");
+ok("4 5/3/1 days defined (one per main lift)", Object.keys(G.T531_LIFTS).length === 4);
+ok("4 weeks defined incl. deload", Object.keys(G.T531_WEEKS).length === 4 && G.T531_WEEKS[4].deload === true);
+const t531Max = { "bench-press-bb": { him: 225, her: 95 }, "strict-press-bb": { him: 135, her: 65 }, "back-squat-bb": { him: 315, her: 135 }, "deadlift-bb": { him: 355, her: 185 } };
+const tBars = { bars: { him: "mens", her: "womens" } };
+const w1 = G.buildT531Session(DATA, { day: "5/3/1 — Bench Day", today, maxes: t531Max, settings: tBars, week: 1 });
+ok("5/3/1 session mode is t531", w1.mode === "t531");
+ok("week 1 main = 3 work sets + 3 warm-ups, top set AMRAP", (() => { const s = w1.blocks[0].items[0].sets; const work = s.filter(x => !x.warmup); return s.length === 6 && work.length === 3 && work[2].pct === 85 && work[2].amrap === true; })());
+ok("week 1 top work set is 85% of TM (~174)", (() => { const work = w1.blocks[0].items[0].sets.filter(x => !x.warmup); return work[2].him >= 170 && work[2].him <= 176; })());
+const w2 = G.buildT531Session(DATA, { day: "5/3/1 — Bench Day", today, maxes: t531Max, settings: tBars, week: 2 });
+const w3 = G.buildT531Session(DATA, { day: "5/3/1 — Bench Day", today, maxes: t531Max, settings: tBars, week: 3 });
+ok("week 2 is the 3s (70/80/90)", (() => { const w = w2.blocks[0].items[0].sets.filter(x => !x.warmup); return w[0].pct === 70 && w[1].pct === 80 && w[2].pct === 90 && w[2].reps === 3; })());
+ok("week 3 is 5/3/1 (75/85/95, top single)", (() => { const w = w3.blocks[0].items[0].sets.filter(x => !x.warmup); return w[0].pct === 75 && w[2].pct === 95 && w[2].reps === 1; })());
+const w4 = G.buildT531Session(DATA, { day: "5/3/1 — Bench Day", today, maxes: t531Max, settings: tBars, week: 4 });
+ok("deload: 3 sets (no warm-up/AMRAP) and no BBB block", (() => { const s = w4.blocks[0].items[0].sets; return w4.blocks.length === 1 && s.length === 3 && s.every(x => !x.amrap && !x.warmup); })());
+ok("weeks 1–3 add a Boring But Big 5×10 @ 50% TM block", (() => { const b = w1.blocks[1]; return b && b.items[0].sets.length === 5 && b.items[0].sets[0].reps === 10 && b.items[0].sets[0].pct === 50; })());
+ok("5/3/1 reuses the same four 1RMs as nSuns (TM = 90%)", w1.blocks[0].items[0].tm.him === G.nsunsTM(225));
+ok("no 1RM → no weight (prompts entry)", G.buildT531Session(DATA, { day: "5/3/1 — Squat Day", today, maxes: {}, settings: {}, week: 1 }).blocks[0].items[0].sets[0].him === null);
+
 console.log(`\n==== ${pass} passed, ${fail} failed ====`);
 process.exit(fail ? 1 : 0);
