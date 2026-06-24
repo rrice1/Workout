@@ -124,7 +124,8 @@ flips to **"update ready — tap to refresh"** when a newer deploy has been pick
   - **Madcow 5×5 (percentage-based):** the classic StrongLifts successor — 3 days (Volume / Light /
     Intensity) where each lift **ramps up to a top set**, and you progress **weekly**. Uses the same
     1RMs as nSuns/5-3-1 (plus a Barbell Row 1RM, which only appears when you pick Madcow). Friday
-    chases a new top set with a back-off; bump the 1RM after a good week and the ramps re-scale.
+    chases a new top **triple** with a back-off set of 8; add ~2.5% to each lift's 1RM weekly and
+    the ramps re-scale.
   - **Texas Method (percentage-based):** 3-day intermediate — a big **Volume** day (5×5 across), a
     **Light** recovery day, and an **Intensity** day where you ramp to a new top set of 5. Weekly
     progression: beat Friday, raise that lift's 1RM.

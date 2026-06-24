@@ -1698,13 +1698,13 @@ const MADCOW_DAYS = {
     { id: "bent-row-bb", base: "row", t: "Ramp 5×5", sets: pctSets(MADCOW_RAMP, 5) },
   ] },
   "Madcow — Wednesday (Light)": { category: "full", assistance: "Optional: abs", items: [
-    { id: "back-squat-bb", base: "squat", t: "Light 4×5", sets: pctSets([45, 56, 67, 79], 5) },
-    { id: "strict-press-bb", base: "press", t: "Ramp 5×5", sets: pctSets(MADCOW_RAMP, 5) },
+    { id: "back-squat-bb", base: "squat", t: "Light 4×5 (to Mon's 4th set)", sets: pctSets([45, 56, 67, 79], 5) },
+    { id: "strict-press-bb", base: "press", t: "Ramp 4×5", sets: pctSets([54, 67, 81, 90], 5) },
     { id: "deadlift-bb", base: "deadlift", t: "Ramp 4×5", sets: pctSets([54, 67, 81, 90], 5) },
   ] },
   "Madcow — Friday (Intensity)": { category: "full", assistance: "Optional: abs, curls", items: [
-    { id: "back-squat-bb", base: "squat", t: "Ramp to top 5 + back-off", sets: pctSets([45, 56, 67, 79, 95, 67], [5, 5, 5, 5, 5, 8]) },
-    { id: "bench-press-bb", base: "bench", t: "Ramp to top 5 + back-off", sets: pctSets([45, 56, 67, 79, 95, 67], [5, 5, 5, 5, 5, 8]) },
+    { id: "back-squat-bb", base: "squat", t: "Ramp to top triple (PR) + back-off 8", sets: pctSets([45, 56, 67, 79, 95, 67], [5, 5, 5, 5, 3, 8]) },
+    { id: "bench-press-bb", base: "bench", t: "Ramp to top triple (PR) + back-off 8", sets: pctSets([45, 56, 67, 79, 95, 67], [5, 5, 5, 5, 3, 8]) },
     { id: "bent-row-bb", base: "row", t: "Ramp 5×5", sets: pctSets(MADCOW_RAMP, 5) },
   ] },
 };
@@ -1718,12 +1718,12 @@ const TEXAS_DAYS = {
     { id: "deadlift-bb", base: "deadlift", t: "1×5", sets: pctSets([90], 5) },
   ] },
   "Texas — Recovery (Wed)": { category: "full", assistance: "Chins & back extensions (3×8–12), your choice", items: [
-    { id: "back-squat-bb", base: "squat", t: "Light 2×5", sets: pctSets([68, 68], 5) },
-    { id: "strict-press-bb", base: "press", t: "3×5", sets: pctSets([72, 72, 72], 5) },
+    { id: "back-squat-bb", base: "squat", t: "Light 2×5 (~80% of Mon)", sets: pctSets([68, 68], 5) },
+    { id: "strict-press-bb", base: "press", t: "3×5 (the alternate press)", sets: pctSets([78, 78, 78], 5) },
   ] },
   "Texas — Intensity (Fri)": { category: "full", assistance: "Optional: chins, abs", items: [
-    { id: "back-squat-bb", base: "squat", t: "Ramp to a top 5 (PR)", sets: pctSets([50, 70, 85, 92, 95], [5, 3, 2, 1, 5], 4) },
-    { id: "bench-press-bb", base: "bench", t: "Ramp to a top 5 (PR)", sets: pctSets([50, 70, 85, 92, 95], [5, 3, 2, 1, 5], 4) },
+    { id: "back-squat-bb", base: "squat", t: "Ramp to a new top 5 (PR)", sets: pctSets([50, 70, 85, 92, 97], [5, 3, 2, 1, 5], 4) },
+    { id: "bench-press-bb", base: "bench", t: "Ramp to a new top 5 (PR)", sets: pctSets([50, 70, 85, 92, 97], [5, 3, 2, 1, 5], 4) },
   ] },
 };
 
@@ -1738,7 +1738,7 @@ const PCT_BLURB = {
 };
 const PCT_NOTE = {
   nsuns: "Enter a true 1RM per lift (lb). Training max = 90%, rounded to 5. Got all your reps on the <b>+</b> (AMRAP) set? Bump that lift's 1RM here and the whole workout re-scales.",
-  madcow: "Enter a true 1RM per lift (lb). Training max = 90%, rounded to 5. Madcow progresses <b>weekly</b> — after a good Friday, nudge each lift's 1RM up (~2.5% lower body, less for presses) and the ramps re-scale.",
+  madcow: "Enter a true 1RM per lift (lb). Training max = 90%, rounded to 5. Madcow progresses <b>weekly</b> — add ~2.5% to every lift each week (bump its 1RM after a good Friday) and the ramps re-scale.",
   texas: "Enter a true 1RM per lift (lb). Training max = 90%, rounded to 5. Texas progresses <b>weekly</b> — beat your Friday top set, then raise that lift's 1RM and the week re-scales.",
 };
 
