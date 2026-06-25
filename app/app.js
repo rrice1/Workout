@@ -57,7 +57,10 @@ function computeTargetRegions(cfg) {
 // Unit-aware prescription text. slot ∈ warmup | strength1 | strength2 | metcon.
 function prescribe(m, slot, rng) {
   const r = rng || (() => 0.5);
-  if (m.cardio) return slot === "warmup" ? "1–2 min easy" : ["10–15 cal", "200–250 m", "60–90s"][Math.floor(r() * 3)];
+  // Erg-style cardio (row/ski/bike/run/stairmaster) is prescribed in calories/meters/time. Rep-based
+  // conditioning that's also tagged cardio (burpees, med-ball slams, box jumps, double-unders) is NOT
+  // — it falls through to reps, so we never say e.g. "200–250 m" of med-ball slams.
+  if (m.cardio && m.implement === "cardio") return slot === "warmup" ? "1–2 min easy" : ["10–15 cal", "200–250 m", "60–90s"][Math.floor(r() * 3)];
   const u = m.unit || "reps";
   if (u === "time") {
     if (slot === "warmup") return "30s hold";
@@ -1964,7 +1967,7 @@ if (typeof module !== "undefined" && module.exports) {
 // ============================================================================
 if (typeof document !== "undefined") {
   const STORE_KEY = "wgen.state.v1";
-  const APP_VERSION = "v34"; // keep in sync with CACHE in service-worker.js; bump on each deploy
+  const APP_VERSION = "v35"; // keep in sync with CACHE in service-worker.js; bump on each deploy
   let DATA = { movements: [], gym: {} };
   let STATE = loadState();
   let CURRENT = null; // current generated session

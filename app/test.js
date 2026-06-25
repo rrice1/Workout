@@ -451,6 +451,20 @@ ok("unilateral mobility warmup adds /side", G.prescribe({ pattern: "mobility", l
 ok("loaded warmup ramp -> light reps", G.prescribe({ pattern: "squat", loadable: true }, "warmup", () => 0.5) === "8–10 light reps");
 ok("no warmup prescription says '(light)'", !/\(light\)/.test(G.prescribe({ pattern: "mobility", loadable: false }, "warmup", () => 0.5)));
 
+console.log("\n== Rep-based conditioning isn't prescribed in meters/cal (only ergs are) ==");
+{
+  const mv = DATA.movements;
+  const erg = mv.find((m) => m.id === "row-erg");
+  const slam = mv.find((m) => m.id === "dball-slam");
+  const burpee = mv.find((m) => m.id === "burpee");
+  ok("erg metcon is cal/meters/time", /cal|m|s/.test(G.prescribe(erg, "metcon", () => 0.4)) && G.prescribe(erg, "metcon", () => 0.4) === "200–250 m");
+  ok("med-ball slam metcon is reps, not meters", !/m$|cal/.test(G.prescribe(slam, "metcon", () => 0.4)) && /^x\d+$/.test(G.prescribe(slam, "metcon", () => 0.4)));
+  ok("burpee metcon is reps, not meters/cal", /^x\d+$/.test(G.prescribe(burpee, "metcon", () => 0.4)));
+  // No rep-based conditioning movement should ever be given an erg-style meters/cal prescription.
+  const repCond = mv.filter((m) => m.cardio && m.implement !== "cardio");
+  ok("no rep-based cardio movement gets a meters/cal prescription", repCond.every((m) => [0, 0.4, 0.9].every((seed) => !/( m|cal)$/.test(G.prescribe(m, "metcon", () => seed)))), repCond.map((m) => m.id).join(", "));
+}
+
 console.log("\n== Tier system (core preferred over secondary) ==");
 ok("tierBonus core > secondary; default == secondary", G.tierBonus({ tier: "core" }) > G.tierBonus({ tier: "secondary" }) && G.tierBonus({}) === G.tierBonus({ tier: "secondary" }));
 // Behaviorally: the hinge main (where core RDLs compete with untagged deadlift/glute-bridge variants)
